@@ -80,12 +80,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Sito di TikTok dentro l'app (modalità sperimentale di raccolta degli sticker) -->
-        <activity
-            android:name=".ui.TikTokWebActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="false" />
-
         <!-- Sessione di cattura automatica (proiezione schermo + bolla) -->
         <service
             android:name=".capture.CaptureService"

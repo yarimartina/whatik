@@ -10,7 +10,6 @@
 
     <string name="action_import">Importa sticker</string>
     <string name="action_capture">Cattura automatica da TikTok</string>
-    <string name="action_tiktok_web">Dal tuo account TikTok (web, sperimentale)</string>
     <string name="action_import_video">Da registrazione dello schermo (video)</string>
     <string name="action_import_link">Da link</string>
     <string name="action_crop">Ritaglia</string>
@@ -43,7 +42,7 @@
     <string name="empty_body">Gli sticker che crei o salvi su TikTok mentre scorri i video restano chiusi dentro TikTok: Whatik li tira fuori da una registrazione dello schermo o da un link, li converte nel formato di WhatsApp e li aggiunge come pack, uno alla volta o in massa.</string>
     <string name="empty_step1">Il modo più comodo: "Cattura automatica da TikTok". Whatik mostra una bolla sopra TikTok; quando gli sticker sono sullo schermo tocca la bolla e Whatik li trova e li aggiunge da solo.</string>
     <string name="empty_step2">In alternativa registra lo schermo con il registratore del telefono e condividi il video con Whatik: gli sticker che si muovono vengono trovati da soli, premi "Crea tutti".</string>
-    <string name="empty_step3">Vuoi provare senza registrare? "Dal tuo account TikTok" apre il sito di TikTok dentro Whatik e raccoglie gli sticker che la pagina carica (sperimentale). Funzionano anche link diretti e immagini in galleria.</string>
+    <string name="empty_step3">Hai il link diretto a uno sticker (file .awebp/.webp/.gif) o a una pagina che lo contiene? Usa "Da link". Le immagini già in galleria si trovano con la ricerca automatica.</string>
     <string name="empty_step4">Tocca gli sticker per selezionarli (o "Seleziona tutto") e premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
     <string name="badge_animated">GIF</string>
 
@@ -190,11 +189,6 @@
     <string name="capture_too_few_frames">troppi pochi fotogrammi: lo schermo non cambiava</string>
     <string name="capture_failed">Cattura non riuscita: %s</string>
     <string name="capture_tips">Suggerimenti: durante i 5 secondi non scorrere. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi non vengono rilevati: per quelli usa uno screenshot e "Ritaglia".</string>
-
-    <string name="title_tiktok_web">TikTok (web)</string>
-    <string name="tiktok_web_hint">Accedi con il tuo account, poi apri Messaggi → una chat → il pannello degli sticker e scorri la tua raccolta: ogni sticker caricato dalla pagina viene raccolto. Alla fine premi Importa.</string>
-    <string name="tiktok_web_import">Importa (%d)</string>
-    <string name="tiktok_web_found">%d sticker raccolti finora: continua a scorrere oppure premi Importa</string>
 
     <string name="default_pack_name">Sticker TikTok</string>
     <string name="default_publisher">Whatik</string>

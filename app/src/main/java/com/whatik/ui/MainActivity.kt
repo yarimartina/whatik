@@ -135,10 +135,6 @@ fun WhatikRoot(vm: MainViewModel) {
             vm.notify(context.getString(R.string.capture_cancelled))
         }
     }
-    val tiktokWeb = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val urls = result.data?.getStringArrayListExtra(TikTokWebActivity.EXTRA_URLS).orEmpty()
-        if (urls.isNotEmpty()) vm.showRemoteCandidates(urls, "TikTok") else if (result.resultCode == Activity.RESULT_OK) vm.notify(context.getString(R.string.link_none_found))
-    }
     val captureUi by vm.captureUi.collectAsStateWithLifecycle()
 
     val addToWhatsApp: (StickerPack) -> Unit = { pack ->
@@ -164,7 +160,6 @@ fun WhatikRoot(vm: MainViewModel) {
             onCropSelected = { selected.singleOrNull()?.let { vm.openImageEditor(it) } },
             onEdit = vm::openImageEditor,
             onCapture = vm::openCapture,
-            onTikTokWeb = { tiktokWeb.launch(Intent(context, TikTokWebActivity::class.java)) },
             onImportVideo = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
             onImportLink = { showLinkDialog = true },
             onImportGallery = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },

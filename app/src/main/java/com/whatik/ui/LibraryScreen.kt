@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -93,7 +92,6 @@ fun LibraryScreen(
     onCropSelected: () -> Unit,
     onEdit: (String) -> Unit,
     onCapture: () -> Unit,
-    onTikTokWeb: () -> Unit,
     onImportVideo: () -> Unit,
     onImportLink: () -> Unit,
     onImportGallery: () -> Unit,
@@ -157,11 +155,6 @@ fun LibraryScreen(
                                     onClick = { importMenu = false; onCapture() },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_tiktok_web)) },
-                                    leadingIcon = { Icon(Icons.Default.AccountCircle, null) },
-                                    onClick = { importMenu = false; onTikTokWeb() },
-                                )
-                                DropdownMenuItem(
                                     text = { Text(stringResource(R.string.action_import_video)) },
                                     leadingIcon = { Icon(Icons.Default.Videocam, null) },
                                     onClick = { importMenu = false; onImportVideo() },
@@ -210,7 +203,7 @@ fun LibraryScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (items.isEmpty()) {
-                EmptyState(onCapture = onCapture, onImportVideo = onImportVideo, onTikTokWeb = onTikTokWeb, onImportLink = onImportLink, onScan = onScan)
+                EmptyState(onCapture = onCapture, onImportVideo = onImportVideo, onImportLink = onImportLink, onScan = onScan)
             } else {
                 StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle, onEdit = onEdit)
             }
@@ -315,7 +308,7 @@ private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onTogg
 }
 
 @Composable
-private fun EmptyState(onCapture: () -> Unit, onImportVideo: () -> Unit, onTikTokWeb: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit) {
+private fun EmptyState(onCapture: () -> Unit, onImportVideo: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -349,12 +342,6 @@ private fun EmptyState(onCapture: () -> Unit, onImportVideo: () -> Unit, onTikTo
             Icon(Icons.Default.Videocam, null)
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.action_import_video))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onTikTokWeb, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.AccountCircle, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_tiktok_web))
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onImportLink, modifier = Modifier.fillMaxWidth()) {

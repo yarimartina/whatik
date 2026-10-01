@@ -10,7 +10,6 @@
 
     <string name="action_import">Import stickers</string>
     <string name="action_capture">Automatic capture from TikTok</string>
-    <string name="action_tiktok_web">From your TikTok account (web, experimental)</string>
     <string name="action_import_video">From a screen recording (video)</string>
     <string name="action_import_link">From a link</string>
     <string name="action_crop">Crop</string>
@@ -43,7 +42,7 @@
     <string name="empty_body">The stickers you create or save on TikTok while scrolling stay locked inside TikTok: Whatik pulls them out of a screen recording or a link, converts them to WhatsApp\'s format and adds them as packs, one at a time or in bulk.</string>
     <string name="empty_step1">The easiest way: "Automatic capture from TikTok". Whatik shows a bubble over TikTok; when stickers are on screen tap the bubble and Whatik finds and adds them by itself.</string>
     <string name="empty_step2">Alternatively record the screen with the phone recorder and share the video with Whatik: moving stickers are detected on their own, press "Create all".</string>
-    <string name="empty_step3">Want to try without recording? "From your TikTok account" opens the TikTok site inside Whatik and collects the stickers the page loads (experimental). Direct links and gallery images work too.</string>
+    <string name="empty_step3">Got a direct link to a sticker (.awebp/.webp/.gif file) or to a page containing it? Use "From a link". Images already in the gallery are found by the automatic search.</string>
     <string name="empty_step4">Tap stickers to select them (or "Select all") and press "Copy to WhatsApp": packs are created and opened in WhatsApp (3 to 30 stickers per pack).</string>
     <string name="badge_animated">GIF</string>
 
@@ -190,11 +189,6 @@
     <string name="capture_too_few_frames">too few frames: the screen was not changing</string>
     <string name="capture_failed">Capture failed: %s</string>
     <string name="capture_tips">Tips: do not scroll during the 5 seconds. If the sticker sits on a playing video, pause it. Still stickers are not detected: use a screenshot and "Crop" for those.</string>
-
-    <string name="title_tiktok_web">TikTok (web)</string>
-    <string name="tiktok_web_hint">Log in with your account, then open Messages → a chat → the sticker panel and scroll through your collection: every sticker the page loads is collected. Press Import when done.</string>
-    <string name="tiktok_web_import">Import (%d)</string>
-    <string name="tiktok_web_found">%d stickers collected so far: keep scrolling or press Import</string>
 
     <string name="default_pack_name">TikTok stickers</string>
     <string name="default_publisher">Whatik</string>

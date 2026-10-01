@@ -209,14 +209,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopCapture() = CaptureService.stop(app)
 
-    /** Sticker raccolti dalla WebView di TikTok: li mostriamo nella lista di importazione, tutti selezionati. */
-    fun showRemoteCandidates(urls: List<String>, pageUrl: String) {
-        if (urls.isEmpty()) return
-        val candidates = urls.map { RemoteCandidate(it, UrlImporter.nameFromUrl(it), true) }
-        _linkState.value = LinkState.Results(pageUrl, candidates, candidates.map { it.url }.toSet(), onlyStickers = false)
-        _screen.value = Screen.LINK_RESULTS
-    }
-
     // ------------------------------------------------------------ navigazione
 
     fun navigate(screen: Screen) {

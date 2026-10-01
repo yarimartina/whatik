@@ -1,7 +1,6 @@
 package com.whatik.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,14 +36,5 @@ class UrlImporterTest {
         assertTrue(found[0].looksSticker)
         assertEquals(listOf("https://cdn.example.com/cover.jpg", "https://cdn.example.com/photo.png?v=3"), found.drop(1).map { it.url })
         assertTrue(found.drop(1).none { it.looksSticker })
-    }
-
-    @Test
-    fun looksLikeTikTokSticker_matchesCdnStickerFilesOnly() {
-        assertTrue(UrlImporter.looksLikeTikTokSticker("https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg/abc~tplv-video2sticker-mid.awebp?x-expires=1"))
-        assertTrue(UrlImporter.looksLikeTikTokSticker("https://p16-sign.tiktokcdn-us.com/obj/sticker/123.webp"))
-        assertFalse(UrlImporter.looksLikeTikTokSticker("https://www.tiktok.com/sticker/app.js"))
-        assertFalse(UrlImporter.looksLikeTikTokSticker("https://example.com/sticker.awebp"))
-        assertFalse(UrlImporter.looksLikeTikTokSticker("https://p16-sign.tiktokcdn.com/avatar/photo.jpeg"))
     }
 }

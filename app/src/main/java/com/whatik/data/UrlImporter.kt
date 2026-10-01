@@ -78,18 +78,6 @@ class UrlImporter(private val library: StickerLibrary) {
 
     companion object {
         private const val USER_AGENT = com.whatik.WhatikApp.BROWSER_USER_AGENT
-        private val TIKTOK_HOSTS = listOf("tiktok", "ibyteimg", "tiktokcdn", "byteimg", "muscdn")
-        private val NON_IMAGE_EXT = Regex("""\.(js|css|svg|json|html|woff2?|ttf|mp4|m3u8|ts)(\?|#|$)""", RegexOption.IGNORE_CASE)
-
-        /** URL di un probabile sticker TikTok (file .awebp o percorso "sticker" sui CDN di TikTok). */
-        fun looksLikeTikTokSticker(url: String): Boolean {
-            val lower = url.lowercase()
-            if (!lower.startsWith("http")) return false
-            val host = lower.substringAfter("://").substringBefore('/')
-            if (TIKTOK_HOSTS.none { host.contains(it) }) return false
-            if (NON_IMAGE_EXT.containsMatchIn(lower)) return false
-            return lower.contains(".awebp") || lower.contains("video2sticker") || lower.contains("sticker")
-        }
         private val URL_IN_TEXT = Regex("""https?://[^\s<>"'\\]+""")
         private val IMAGE_EXT = Regex("""\.(awebp|webp|gif|png|jpe?g)(\?|#|$)""", RegexOption.IGNORE_CASE)
         private val STICKER_HINTS = listOf("sticker", "awebp", "video2sticker", "ibyteimg", "tiktokcdn", "emoji")
