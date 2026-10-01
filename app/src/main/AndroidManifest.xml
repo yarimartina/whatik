@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Importazione da link (file .awebp degli sticker sul CDN di TikTok, pagine web) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Lettura delle immagini salvate (ricerca degli sticker TikTok in galleria) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
@@ -36,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Destinazione del menu "Condividi" per una o più immagini -->
+        <!-- Destinazione del menu "Condividi": immagini, video (registrazioni schermo) e link -->
         <activity
             android:name=".ui.ShareReceiverActivity"
             android:excludeFromRecents="true"
@@ -52,6 +55,18 @@
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
+            </intent-filter>
+            <!-- Registrazione dello schermo da cui ritagliare lo sticker -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+            <!-- Link a uno sticker o a una pagina che lo contiene -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

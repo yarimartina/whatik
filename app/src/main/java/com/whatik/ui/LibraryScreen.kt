@@ -28,13 +28,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -82,6 +85,9 @@ fun LibraryScreen(
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onCropSelected: () -> Unit,
+    onImportVideo: () -> Unit,
+    onImportLink: () -> Unit,
     onImportGallery: () -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
@@ -116,6 +122,11 @@ fun LibraryScreen(
                         }
                     }
                     if (selectionMode) {
+                        if (selected.size == 1) {
+                            IconButton(onClick = onCropSelected) {
+                                Icon(Icons.Default.Crop, contentDescription = stringResource(R.string.action_crop))
+                            }
+                        }
                         IconButton(onClick = { confirmDelete = true }) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
                         }
@@ -128,6 +139,16 @@ fun LibraryScreen(
                                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_import))
                             }
                             DropdownMenu(expanded = importMenu, onDismissRequest = { importMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_video)) },
+                                    leadingIcon = { Icon(Icons.Default.Videocam, null) },
+                                    onClick = { importMenu = false; onImportVideo() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_link)) },
+                                    leadingIcon = { Icon(Icons.Default.Link, null) },
+                                    onClick = { importMenu = false; onImportLink() },
+                                )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.action_import_gallery)) },
                                     leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) },
@@ -167,7 +188,7 @@ fun LibraryScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (items.isEmpty()) {
-                EmptyState(onImportGallery = onImportGallery, onScan = onScan, onImportFolder = onImportFolder)
+                EmptyState(onImportVideo = onImportVideo, onImportLink = onImportLink, onScan = onScan, onImportGallery = onImportGallery)
             } else {
                 StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle)
             }
@@ -266,7 +287,7 @@ private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onTogg
 }
 
 @Composable
-private fun EmptyState(onImportGallery: () -> Unit, onScan: () -> Unit, onImportFolder: () -> Unit) {
+private fun EmptyState(onImportVideo: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit, onImportGallery: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -290,7 +311,19 @@ private fun EmptyState(onImportGallery: () -> Unit, onScan: () -> Unit, onImport
             Step("4", stringResource(R.string.empty_step4))
         }
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onImportVideo, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Videocam, null)
+            Spacer(Modifier.size(8.dp))
+            Text(stringResource(R.string.action_import_video))
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onImportLink, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Link, null)
+            Spacer(Modifier.size(8.dp))
+            Text(stringResource(R.string.action_import_link))
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onScan, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.ImageSearch, null)
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.action_scan))
@@ -300,12 +333,6 @@ private fun EmptyState(onImportGallery: () -> Unit, onScan: () -> Unit, onImport
             Icon(Icons.Default.PhotoLibrary, null)
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.action_import_gallery))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onImportFolder, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.FolderOpen, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_import_folder))
         }
     }
 }

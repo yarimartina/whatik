@@ -56,6 +56,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 

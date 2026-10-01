@@ -42,8 +42,12 @@ object StickerConverter {
         } catch (e: Exception) {
             throw ConversionException("Immagine non riconosciuta o danneggiata", e)
         }
-        return if (forceStatic || producer.info.frameCount < 2) convertStatic(producer) else convertAnimated(producer)
+        return convert(producer, forceStatic)
     }
+
+    /** Converte qualunque sorgente di fotogrammi (immagine, GIF/WebP animato, video ritagliato). */
+    fun convert(producer: FrameProducer, forceStatic: Boolean): Result =
+        if (forceStatic || producer.info.frameCount < 2) convertStatic(producer) else convertAnimated(producer)
 
     // ---------------------------------------------------------------- statico
 

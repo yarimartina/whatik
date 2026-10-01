@@ -228,7 +228,7 @@ class StickerLibrary(context: Context) {
 
         fun stripExtension(name: String): String {
             val dot = name.lastIndexOf('.')
-            return if (dot > 0 && name.length - dot <= 5) name.substring(0, dot) else name
+            return if (dot > 0 && name.length - dot <= 6) name.substring(0, dot) else name
         }
 
         fun sha256(bytes: ByteArray): String =

@@ -4,26 +4,24 @@ App Android che prende gli sticker di TikTok, li converte nel formato richiesto 
 
 ## Come funziona
 
-1. **Porta gli sticker in Whatik** in uno di questi modi:
-   - **Condividi** → in TikTok (o in galleria / file manager) scegli *Condividi* e poi *Salva in Whatik*. Funziona con una o più immagini alla volta.
-   - **Cerca gli sticker TikTok sul telefono** → l'app cerca nella galleria (MediaStore) le immagini salvate da TikTok: quelle nelle cartelle `TikTok` sono già selezionate, ma si può passare a *Tutte le immagini*.
-   - **Dalla galleria / Da file / Da una cartella** → selezione manuale con il photo picker, il selettore di documenti o un'intera cartella (ricorsiva).
-2. **Seleziona** gli sticker nella griglia: un tocco seleziona il singolo sticker, *Seleziona tutto* li prende tutti. Si possono anche eliminare dalla libreria.
-3. **Copia su WhatsApp**: scegli nome e autore del pack, poi *Converti*. Whatik:
-   - converte ogni immagine in **WebP 512×512** (≤ 100 KB se statico, ≤ 500 KB se animato);
-   - conserva le **animazioni** di GIF e WebP animati, rispettando il limite di 10 secondi e riducendo qualità/fotogrammi finché il file rientra nei limiti;
-   - genera l'**icona del pack** (96×96 PNG);
-   - distribuisce gli sticker nei pack rispettando le regole di WhatsApp: **da 3 a 30 sticker per pack** e pack **solo statici o solo animati** (si può anche scegliere di convertire gli animati in statici);
-   - può aggiungere gli sticker a un **pack esistente** creato in precedenza, invece di crearne uno nuovo.
-4. Il pack viene aperto in **WhatsApp** (consumer o Business) tramite l'intent ufficiale `com.whatsapp.intent.action.ENABLE_STICKER_PACK`. Nella schermata *Pack* si vedono tutti i pack creati, il loro stato su WhatsApp e si possono riaprire o eliminare.
+Gli sticker che crei (Condividi → *Crea sticker*) o salvi mentre scorri i video restano nella raccolta di TikTok, che non offre un pulsante di download e che le altre app non possono leggere. Whatik li tira fuori in questi modi:
 
-> **Nota su TikTok.** TikTok tiene gli sticker delle chat nella propria memoria privata, che le altre app non possono leggere. Per questo Whatik lavora sugli sticker che TikTok permette di salvare o condividere (immagini, GIF, screenshot), oppure su quelli già presenti in galleria.
+1. **Registrazione dello schermo** (il metodo che funziona sempre, anche per gli sticker animati): registra lo schermo di TikTok mentre lo sticker è visibile, poi in Whatik scegli *Da registrazione dello schermo* (o condividi il video con Whatik). L'editor permette di inquadrare lo sticker con un riquadro (trascina, pizzica, cursore) e di scegliere l'intervallo da animare (max 10 s): i fotogrammi vengono estratti a 10 fps e diventano uno sticker WebP animato.
+2. **Screenshot**: per uno sticker fermo basta uno screenshot; si importa e si ritaglia con lo stesso editor (azione *Ritaglia* quando è selezionato un solo sticker).
+3. **Link**: gli sticker TikTok sono file WebP animati (`.awebp`) sul CDN di TikTok. Con *Da link* (o condividendo un link con Whatik) si incolla l'URL diretto del file oppure di una pagina: Whatik scarica l'immagine o elenca tutte le immagini trovate nella pagina, con i probabili sticker già selezionati.
+4. **Galleria**: le immagini già salvate si trovano con *Cerca gli sticker TikTok sul telefono* (cartelle TikTok già selezionate), con il photo picker, da file o da un'intera cartella.
+
+Poi:
+
+- **Seleziona** gli sticker nella griglia: un tocco seleziona il singolo sticker, *Seleziona tutto* li prende tutti.
+- **Copia su WhatsApp**: scegli nome e autore del pack, poi *Converti*. Whatik converte ogni immagine in **WebP 512×512** (≤ 100 KB se statico, ≤ 500 KB se animato), conserva le **animazioni** di GIF e WebP animati entro i 10 secondi riducendo qualità e fotogrammi quando serve, genera l'**icona del pack** e distribuisce gli sticker rispettando le regole di WhatsApp: **da 3 a 30 sticker per pack**, pack **solo statici o solo animati** (oppure animati convertiti in statici), con la possibilità di aggiungere a un **pack esistente**.
+- Il pack viene aperto in **WhatsApp** (consumer o Business) tramite l'intent ufficiale `com.whatsapp.intent.action.ENABLE_STICKER_PACK`. Nella schermata *Pack* si vedono tutti i pack creati, il loro stato su WhatsApp e si possono riaprire o eliminare.
 
 ## Requisiti
 
 - Android 8.0 (API 26) o superiore.
 - WhatsApp o WhatsApp Business installato per l'aggiunta dei pack.
-- Permesso di lettura delle immagini solo per la funzione *Cerca sticker sul telefono* (su Android 14 è possibile concedere l'accesso solo ad alcune foto).
+- Permesso di lettura delle immagini solo per la funzione *Cerca sticker sul telefono* (su Android 14 è possibile concedere l'accesso solo ad alcune foto); accesso a Internet solo per l'importazione da link.
 
 ## Compilare
 
@@ -42,6 +40,8 @@ Serve JDK 17+ e l'Android SDK (compileSdk 35). Il workflow GitHub Actions in `.g
 | `image/WebPContainer.kt` | Lettura/scrittura del contenitore WebP: estrae i fotogrammi dei WebP animati e ricompone animazioni (VP8X/ANIM/ANMF), cosa che Android non sa fare da solo |
 | `image/FrameProducer.kt` | Produce i fotogrammi composti per GIF, WebP animati e immagini statiche |
 | `image/StickerConverter.kt` | Ridimensiona a 512×512, codifica WebP e rispetta i limiti di peso e durata |
+| `image/VideoFrameProducer.kt` / `image/Crop.kt` | Estrazione dei fotogrammi da una registrazione dello schermo (con cache su disco) e ritaglio quadrato |
+| `data/UrlImporter.kt` | Importazione da link: file immagine diretto o ricerca delle immagini in una pagina |
 | `data/StickerLibrary.kt` | Libreria degli sticker importati (deduplica per SHA-256, importazione da URI e cartelle) |
 | `data/MediaScanner.kt` | Ricerca nel MediaStore con riconoscimento delle cartelle TikTok |
 | `data/PackPlanner.kt` | Suddivisione della selezione in pack (3–30, statici/animati, pack esistenti) |

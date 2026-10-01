@@ -9,6 +9,7 @@ import coil.decode.ImageDecoderDecoder
 import com.whatik.data.PackStore
 import com.whatik.data.StickerExporter
 import com.whatik.data.StickerLibrary
+import okhttp3.OkHttpClient
 
 class WhatikApp : Application(), ImageLoaderFactory {
 
@@ -21,6 +22,19 @@ class WhatikApp : Application(), ImageLoaderFactory {
         .components {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
         }
+        .okHttpClient {
+            OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    chain.proceed(chain.request().newBuilder().header("User-Agent", BROWSER_USER_AGENT).build())
+                }
+                .build()
+        }
         .crossfade(true)
         .build()
+
+    companion object {
+        /** Alcuni CDN rifiutano i client non-browser: usiamo lo stesso UA dell'importazione da link. */
+        const val BROWSER_USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    }
 }

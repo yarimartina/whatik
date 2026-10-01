@@ -1,6 +1,7 @@
 package com.whatik.ui
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -33,11 +34,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) viewModel.handleIntent(intent)
         setContent {
             WhatikTheme {
                 WhatikRoot(viewModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        viewModel.handleIntent(intent)
     }
 
     override fun onResume() {
@@ -56,9 +64,12 @@ fun WhatikRoot(vm: MainViewModel) {
     val packs by vm.packs.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val scanState by vm.scanState.collectAsStateWithLifecycle()
+    val linkState by vm.linkState.collectAsStateWithLifecycle()
+    val editorState by vm.editorState.collectAsStateWithLifecycle()
     val exportState by vm.exportState.collectAsStateWithLifecycle()
     val addedToWhatsApp by vm.addedToWhatsApp.collectAsStateWithLifecycle()
     val snackbarState = remember { SnackbarHostState() }
+    var showLinkDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         vm.messages.collect { snackbarState.showSnackbar(it) }
@@ -66,6 +77,9 @@ fun WhatikRoot(vm: MainViewModel) {
 
     val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         vm.importUris(uris, "picker")
+    }
+    val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let { vm.openVideoEditor(it, null) }
     }
     val openDocuments = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.importUris(uris, "picker")
@@ -108,6 +122,9 @@ fun WhatikRoot(vm: MainViewModel) {
             onSelectAll = vm::selectAll,
             onClearSelection = vm::clearSelection,
             onDeleteSelected = vm::deleteSelected,
+            onCropSelected = { selected.singleOrNull()?.let { vm.openImageEditor(it) } },
+            onImportVideo = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
+            onImportLink = { showLinkDialog = true },
             onImportGallery = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             onImportFiles = { openDocuments.launch(arrayOf("image/*")) },
             onImportFolder = { openTree.launch(null) },
@@ -136,6 +153,42 @@ fun WhatikRoot(vm: MainViewModel) {
             onBack = { vm.back() },
             onAddToWhatsApp = addToWhatsApp,
             onDelete = vm::deletePack,
+        )
+        Screen.EDITOR -> {
+            val state = editorState
+            if (state != null) {
+                EditorScreen(
+                    state = state,
+                    snackbarHost = snackbarHost,
+                    onBack = vm::closeEditor,
+                    onCropChange = vm::updateCrop,
+                    onRangeChange = vm::updateRange,
+                    onNameChange = vm::updateEditorName,
+                    onCreate = vm::createStickerFromEditor,
+                )
+            } else {
+                vm.navigate(Screen.LIBRARY)
+            }
+        }
+        Screen.LINK_RESULTS -> LinkResultsScreen(
+            state = linkState,
+            busy = busy,
+            snackbarHost = snackbarHost,
+            onBack = { vm.back() },
+            onToggle = vm::toggleLinkCandidate,
+            onFilter = vm::setLinkFilter,
+            onSelectAllVisible = vm::linkSelectAllVisible,
+            onImport = vm::importLinkSelection,
+        )
+    }
+
+    if (showLinkDialog) {
+        LinkDialog(
+            onConfirm = { text ->
+                showLinkDialog = false
+                vm.importFromLink(text)
+            },
+            onDismiss = { showLinkDialog = false },
         )
     }
 

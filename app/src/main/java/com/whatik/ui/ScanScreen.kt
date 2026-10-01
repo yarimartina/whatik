@@ -1,8 +1,6 @@
 package com.whatik.ui
 
 import android.net.Uri
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,16 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -38,15 +33,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.whatik.R
-import com.whatik.data.MediaCandidate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,38 +144,16 @@ private fun LoadedContent(
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 96.dp), modifier = Modifier.fillMaxSize()) {
                 items(visible, key = { it.uri.toString() }) { candidate ->
-                    CandidateRow(candidate, candidate.uri in state.selected) { onToggle(candidate.uri) }
+                    SelectableRow(
+                        model = candidate.uri,
+                        title = candidate.displayName,
+                        subtitle = candidate.path,
+                        highlighted = candidate.looksTikTok,
+                        checked = candidate.uri in state.selected,
+                        onToggle = { onToggle(candidate.uri) },
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun CandidateRow(candidate: MediaCandidate, checked: Boolean, onToggle: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = candidate.uri,
-            contentDescription = candidate.displayName,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(candidate.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                candidate.path,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (candidate.looksTikTok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Checkbox(checked = checked, onCheckedChange = { onToggle() })
     }
 }

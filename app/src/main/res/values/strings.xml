@@ -9,6 +9,9 @@
     <string name="title_packs">I tuoi pack</string>
 
     <string name="action_import">Importa sticker</string>
+    <string name="action_import_video">Da registrazione dello schermo (video)</string>
+    <string name="action_import_link">Da link</string>
+    <string name="action_crop">Ritaglia</string>
     <string name="action_import_gallery">Dalla galleria</string>
     <string name="action_import_files">Da file</string>
     <string name="action_import_folder">Da una cartella</string>
@@ -29,11 +32,11 @@
     <string name="action_rescan">Aggiorna</string>
 
     <string name="empty_title">Nessuno sticker ancora</string>
-    <string name="empty_body">Whatik raccoglie gli sticker che prendi da TikTok, li converte nel formato di WhatsApp e li aggiunge come pack. Puoi copiarne uno alla volta o tutti insieme.</string>
-    <string name="empty_step1">In TikTok tieni premuto lo sticker (o l\'immagine) e scegli Salva oppure Condividi → Whatik.</string>
-    <string name="empty_step2">Se lo hai salvato in galleria, usa "Cerca gli sticker TikTok sul telefono": trova da solo la cartella di TikTok.</string>
-    <string name="empty_step3">Tocca gli sticker per selezionarli, oppure usa "Seleziona tutto" per copiarli in massa.</string>
-    <string name="empty_step4">Premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
+    <string name="empty_body">Gli sticker che crei o salvi su TikTok mentre scorri i video restano chiusi dentro TikTok: Whatik li tira fuori da una registrazione dello schermo o da un link, li converte nel formato di WhatsApp e li aggiunge come pack, uno alla volta o in massa.</string>
+    <string name="empty_step1">Apri TikTok e registra lo schermo mentre lo sticker è visibile (nel video o nel pannello degli sticker). Per uno sticker fermo basta uno screenshot.</string>
+    <string name="empty_step2">In Whatik scegli "Da registrazione dello schermo", inquadra lo sticker con il riquadro e scegli l\'intervallo: diventa uno sticker animato. Gli screenshot si ritagliano allo stesso modo.</string>
+    <string name="empty_step3">Hai il link diretto a uno sticker (file .awebp/.webp/.gif) o a una pagina che lo contiene? Usa "Da link". Le immagini già in galleria si trovano con la ricerca automatica.</string>
+    <string name="empty_step4">Tocca gli sticker per selezionarli (o "Seleziona tutto") e premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
     <string name="badge_animated">GIF</string>
 
     <plurals name="delete_confirm_title">
@@ -94,6 +97,30 @@
     <string name="msg_whatsapp_error">WhatsApp ha rifiutato il pack: %s</string>
     <string name="msg_whatsapp_missing">WhatsApp non è installato</string>
     <string name="share_nothing">Nessuna immagine da importare</string>
+
+    <string name="title_editor">Ritaglia lo sticker</string>
+    <string name="editor_hint_video">Trascina il riquadro sullo sticker e stringi o allarga con due dita. Scegli poi l\'intervallo da animare (massimo 10 secondi).</string>
+    <string name="editor_hint_image">Trascina il riquadro sullo sticker e stringi o allarga con due dita.</string>
+    <string name="editor_crop_size">Dimensione del riquadro</string>
+    <string name="editor_range">Intervallo da animare</string>
+    <string name="editor_duration">%1$.1f s · %2$d fotogrammi</string>
+    <string name="editor_name">Nome dello sticker</string>
+    <string name="editor_create">Crea sticker</string>
+    <string name="editor_progress">Estrazione fotogrammi %1$d/%2$d</string>
+    <string name="editor_converting">Conversione in corso…</string>
+    <string name="msg_sticker_created">Sticker creato e aggiunto alla libreria</string>
+    <string name="msg_sticker_failed">Sticker non creato: %s</string>
+    <string name="msg_video_unreadable">Video non leggibile %s</string>
+
+    <string name="link_title">Importa da link</string>
+    <string name="link_hint">Incolla il link di uno sticker (file .awebp, .webp o .gif) oppure di una pagina che lo contiene: Whatik scarica l\'immagine o elenca quelle trovate nella pagina.</string>
+    <string name="link_field">Link</string>
+    <string name="link_search">Cerca</string>
+    <string name="link_none_found">Nessuna immagine trovata nella pagina</string>
+    <string name="link_error">Link non importato: %s</string>
+    <string name="title_link_results">Immagini trovate</string>
+    <string name="link_filter_stickers">Probabili sticker (%d)</string>
+    <string name="link_filter_all">Tutte (%d)</string>
 
     <string name="default_pack_name">Sticker TikTok</string>
     <string name="default_publisher">Whatik</string>

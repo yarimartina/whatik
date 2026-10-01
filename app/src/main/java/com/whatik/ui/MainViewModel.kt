@@ -1,20 +1,32 @@
 package com.whatik.ui
 
 import android.app.Application
+import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.whatik.R
 import com.whatik.WhatikApp
 import com.whatik.data.MediaCandidate
 import com.whatik.data.MediaScanner
 import com.whatik.data.PackPlanner
+import com.whatik.data.RemoteCandidate
 import com.whatik.data.StickerExporter
 import com.whatik.data.StickerItem
 import com.whatik.data.StickerLibrary
 import com.whatik.data.StickerPack
+import com.whatik.data.UrlImporter
+import com.whatik.image.CropSpec
+import com.whatik.image.CroppedFrameProducer
+import com.whatik.image.FrameProducer
+import com.whatik.image.StickerConverter
+import com.whatik.image.VideoFrameProducer
 import com.whatik.whatsapp.WhatsAppBridge
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,8 +35,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.UUID
 
-enum class Screen { LIBRARY, SCAN, PACKS }
+enum class Screen { LIBRARY, SCAN, PACKS, EDITOR, LINK_RESULTS }
 
 sealed class ScanState {
     data object Idle : ScanState()
@@ -38,6 +52,54 @@ sealed class ScanState {
         val visible: List<MediaCandidate> get() = if (onlyTikTok) candidates.filter { it.looksTikTok } else candidates
         val tiktokCount: Int get() = candidates.count { it.looksTikTok }
     }
+}
+
+sealed class LinkState {
+    data object Idle : LinkState()
+    data object Loading : LinkState()
+    data class Results(
+        val pageUrl: String,
+        val candidates: List<RemoteCandidate>,
+        val selected: Set<String>,
+        val onlyStickers: Boolean,
+    ) : LinkState() {
+        val visible: List<RemoteCandidate> get() = if (onlyStickers) candidates.filter { it.looksSticker } else candidates
+        val stickerCount: Int get() = candidates.count { it.looksSticker }
+    }
+}
+
+sealed class EditorSource {
+    abstract val width: Int
+    abstract val height: Int
+
+    class Video(val file: File, val info: VideoFrameProducer.VideoInfo) : EditorSource() {
+        override val width: Int get() = info.width
+        override val height: Int get() = info.height
+    }
+
+    class Image(
+        val bytes: ByteArray,
+        override val width: Int,
+        override val height: Int,
+        val animated: Boolean,
+        val replaceItemId: String?,
+    ) : EditorSource()
+}
+
+data class EditorState(
+    val source: EditorSource,
+    val name: String,
+    val crop: CropSpec,
+    val startMs: Long,
+    val endMs: Long,
+    val previewTimeMs: Long,
+    val preview: Bitmap?,
+    val converting: Boolean = false,
+    val progress: Pair<Int, Int>? = null,
+) {
+    val isVideo: Boolean get() = source is EditorSource.Video
+    val durationMs: Long get() = (source as? EditorSource.Video)?.info?.durationMs ?: 0L
+    val frameCount: Int get() = if (isVideo) ((endMs - startMs) * VideoFrameProducer.DEFAULT_FPS / 1000.0).toInt().coerceAtLeast(1) else 1
 }
 
 sealed class ExportState {
@@ -57,6 +119,7 @@ sealed class ExportState {
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as WhatikApp
     private val library: StickerLibrary = app.library
+    private val urlImporter = UrlImporter(library)
 
     val items: StateFlow<List<StickerItem>> = library.items
     val packs: StateFlow<List<StickerPack>> = app.packStore.packs
@@ -69,6 +132,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
     val scanState: StateFlow<ScanState> = _scanState.asStateFlow()
+
+    private val _linkState = MutableStateFlow<LinkState>(LinkState.Idle)
+    val linkState: StateFlow<LinkState> = _linkState.asStateFlow()
+
+    private val _editorState = MutableStateFlow<EditorState?>(null)
+    val editorState: StateFlow<EditorState?> = _editorState.asStateFlow()
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Hidden)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
@@ -84,6 +153,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val messages: SharedFlow<String> = _messages
 
     private var exportJob: Job? = null
+    private var previewJob: Job? = null
+    private val editorDir = File(app.cacheDir, "editor")
 
     // ------------------------------------------------------------ navigazione
 
@@ -93,15 +164,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun back(): Boolean {
-        if (_screen.value != Screen.LIBRARY) {
-            _screen.value = Screen.LIBRARY
-            return true
+        when (_screen.value) {
+            Screen.EDITOR -> { closeEditor(); return true }
+            Screen.LIBRARY -> Unit
+            else -> { _screen.value = Screen.LIBRARY; return true }
         }
         if (_selected.value.isNotEmpty()) {
             clearSelection()
             return true
         }
         return false
+    }
+
+    /** Richieste arrivate da [ShareReceiverActivity] (video da ritagliare o link da importare). */
+    fun handleIntent(intent: Intent?) {
+        intent ?: return
+        intent.getStringExtra(EXTRA_VIDEO_PATH)?.let { path ->
+            intent.removeExtra(EXTRA_VIDEO_PATH)
+            openVideoEditorFromFile(File(path), intent.getStringExtra(EXTRA_VIDEO_NAME))
+        }
+        intent.getStringExtra(EXTRA_LINK)?.let { link ->
+            intent.removeExtra(EXTRA_LINK)
+            importFromLink(link)
+        }
     }
 
     // ------------------------------------------------------------ selezione
@@ -122,7 +207,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             library.delete(ids)
             _selected.value = emptySet()
-            _messages.emit(app.getString(com.whatik.R.string.msg_deleted, ids.size))
+            _messages.emit(app.getString(R.string.msg_deleted, ids.size))
         }
     }
 
@@ -149,10 +234,242 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun summaryMessage(summary: StickerLibrary.ImportSummary): String {
         val parts = ArrayList<String>()
-        parts.add(app.resources.getQuantityString(com.whatik.R.plurals.msg_imported, summary.added, summary.added))
-        if (summary.duplicates > 0) parts.add(app.getString(com.whatik.R.string.msg_duplicates, summary.duplicates))
-        if (summary.failed.isNotEmpty()) parts.add(app.getString(com.whatik.R.string.msg_failed, summary.failed.size, summary.failed.first().reason))
+        parts.add(app.resources.getQuantityString(R.plurals.msg_imported, summary.added, summary.added))
+        if (summary.duplicates > 0) parts.add(app.getString(R.string.msg_duplicates, summary.duplicates))
+        if (summary.failed.isNotEmpty()) parts.add(app.getString(R.string.msg_failed, summary.failed.size, summary.failed.first().reason))
         return parts.joinToString(" · ")
+    }
+
+    // ------------------------------------------------------------ editor (video / ritaglio)
+
+    fun openVideoEditor(uri: Uri, displayName: String?) {
+        viewModelScope.launch {
+            _busy.value = true
+            val copied = withContext(Dispatchers.IO) {
+                runCatching {
+                    editorDir.mkdirs()
+                    val target = File(editorDir, "${UUID.randomUUID()}.mp4")
+                    app.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+                        ?: throw IllegalStateException("Impossibile leggere il video")
+                    target
+                }
+            }
+            _busy.value = false
+            copied.onSuccess { openVideoEditorFromFile(it, displayName ?: uri.lastPathSegment) }
+                .onFailure { _messages.emit(app.getString(R.string.msg_video_unreadable, it.message ?: "")) }
+        }
+    }
+
+    private fun openVideoEditorFromFile(file: File, displayName: String?) {
+        viewModelScope.launch {
+            val info = withContext(Dispatchers.IO) { runCatching { VideoFrameProducer.readInfo(file) } }
+            info.onFailure {
+                file.delete()
+                _messages.emit(app.getString(R.string.msg_video_unreadable, it.message ?: ""))
+            }.onSuccess { videoInfo ->
+                val end = minOf(videoInfo.durationMs, DEFAULT_CLIP_MS)
+                _editorState.value = EditorState(
+                    source = EditorSource.Video(file, videoInfo),
+                    name = StickerLibrary.stripExtension(displayName ?: "sticker").take(60),
+                    crop = CropSpec.DEFAULT,
+                    startMs = 0,
+                    endMs = end,
+                    previewTimeMs = 0,
+                    preview = null,
+                )
+                _screen.value = Screen.EDITOR
+                requestPreview(0)
+            }
+        }
+    }
+
+    /** Apre l'editor su uno sticker già in libreria (screenshot da ritagliare, GIF da rifilare...). */
+    fun openImageEditor(itemId: String) {
+        val item = library.find(itemId) ?: return
+        viewModelScope.launch {
+            val loaded = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bytes = library.file(item).readBytes()
+                    val first = FrameProducer.firstFrame(bytes)
+                    Triple(bytes, first, item.animated)
+                }
+            }
+            loaded.onFailure { _messages.emit(app.getString(R.string.msg_failed, 1, it.message ?: "")) }
+                .onSuccess { (bytes, first, animated) ->
+                    _editorState.value = EditorState(
+                        source = EditorSource.Image(bytes, first.width, first.height, animated, replaceItemId = item.id),
+                        name = item.displayName,
+                        crop = CropSpec(0.5f, 0.5f, 0.7f),
+                        startMs = 0,
+                        endMs = 0,
+                        previewTimeMs = 0,
+                        preview = first,
+                    )
+                    _screen.value = Screen.EDITOR
+                }
+        }
+    }
+
+    fun updateCrop(crop: CropSpec) {
+        _editorState.update { it?.copy(crop = crop.normalized()) }
+    }
+
+    fun updateEditorName(name: String) {
+        _editorState.update { it?.copy(name = name.take(60)) }
+    }
+
+    /** Aggiorna l'intervallo (max 10 s) e mostra l'anteprima del cursore che si è mosso. */
+    fun updateRange(startMs: Long, endMs: Long) {
+        val state = _editorState.value ?: return
+        var start = startMs.coerceIn(0, state.durationMs)
+        var end = endMs.coerceIn(0, state.durationMs)
+        if (end - start < MIN_CLIP_MS) {
+            if (start != state.startMs) start = (end - MIN_CLIP_MS).coerceAtLeast(0) else end = (start + MIN_CLIP_MS).coerceAtMost(state.durationMs)
+        }
+        if (end - start > StickerConverter.MAX_DURATION_MS) {
+            if (start != state.startMs) end = start + StickerConverter.MAX_DURATION_MS else start = end - StickerConverter.MAX_DURATION_MS
+        }
+        val movedEnd = end != state.endMs && start == state.startMs
+        _editorState.value = state.copy(startMs = start, endMs = end)
+        requestPreview(if (movedEnd) end else start)
+    }
+
+    fun requestPreview(timeMs: Long) {
+        val state = _editorState.value ?: return
+        val video = state.source as? EditorSource.Video ?: return
+        _editorState.update { it?.copy(previewTimeMs = timeMs) }
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            delay(120) // debounce mentre si trascina il cursore
+            val bitmap = withContext(Dispatchers.IO) { VideoFrameProducer.previewFrame(video.file, timeMs) }
+            if (bitmap != null) _editorState.update { it?.takeIf { s -> s.previewTimeMs == timeMs }?.copy(preview = bitmap) ?: it }
+        }
+    }
+
+    fun createStickerFromEditor() {
+        val state = _editorState.value ?: return
+        if (state.converting) return
+        _editorState.value = state.copy(converting = true, progress = null)
+        viewModelScope.launch {
+            val framesDir = File(editorDir, "frames-${UUID.randomUUID()}")
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    val producer = when (val src = state.source) {
+                        is EditorSource.Video -> VideoFrameProducer(
+                            file = src.file, startMs = state.startMs, endMs = state.endMs,
+                            fps = VideoFrameProducer.DEFAULT_FPS, crop = state.crop, cacheDir = framesDir,
+                        ) { done, total -> _editorState.update { it?.copy(progress = done to total) } }
+                        is EditorSource.Image -> CroppedFrameProducer(FrameProducer.open(src.bytes), state.crop)
+                    }
+                    val converted = StickerConverter.convert(producer, forceStatic = false)
+                    val source = if (state.isVideo) "video" else "crop"
+                    val imported = library.importBytes(converted.bytes, state.name.ifBlank { "sticker" }, source)
+                    val replace = (state.source as? EditorSource.Image)?.replaceItemId
+                    if (replace != null && imported is StickerLibrary.ImportResult.Added) library.delete(setOf(replace))
+                    imported
+                }
+            }
+            framesDir.deleteRecursively()
+            result.onFailure { e ->
+                if (e is CancellationException) throw e
+                _editorState.update { it?.copy(converting = false, progress = null) }
+                _messages.emit(app.getString(R.string.msg_sticker_failed, e.message ?: e.javaClass.simpleName))
+            }.onSuccess { imported ->
+                when (imported) {
+                    is StickerLibrary.ImportResult.Added -> {
+                        _selected.value = setOf(imported.item.id)
+                        _messages.emit(app.getString(R.string.msg_sticker_created))
+                    }
+                    is StickerLibrary.ImportResult.Duplicate -> {
+                        _selected.value = setOf(imported.item.id)
+                        _messages.emit(app.getString(R.string.msg_duplicates, 1))
+                    }
+                    is StickerLibrary.ImportResult.Failed -> _messages.emit(app.getString(R.string.msg_sticker_failed, imported.reason))
+                }
+                closeEditor()
+            }
+        }
+    }
+
+    fun closeEditor() {
+        previewJob?.cancel()
+        val state = _editorState.value
+        _editorState.value = null
+        _screen.value = Screen.LIBRARY
+        (state?.source as? EditorSource.Video)?.file?.let { f -> viewModelScope.launch(Dispatchers.IO) { f.delete() } }
+    }
+
+    // ------------------------------------------------------------ link
+
+    fun importFromLink(text: String) {
+        viewModelScope.launch {
+            _linkState.value = LinkState.Loading
+            _busy.value = true
+            when (val fetched = urlImporter.fetch(text)) {
+                is UrlImporter.Fetched.Image -> {
+                    val summary = when (val r = library.importBytes(fetched.bytes, fetched.name, "link")) {
+                        is StickerLibrary.ImportResult.Added -> StickerLibrary.ImportSummary(1, 0, emptyList())
+                        is StickerLibrary.ImportResult.Duplicate -> StickerLibrary.ImportSummary(0, 1, emptyList())
+                        is StickerLibrary.ImportResult.Failed -> StickerLibrary.ImportSummary(0, 0, listOf(r))
+                    }
+                    _linkState.value = LinkState.Idle
+                    _messages.emit(summaryMessage(summary))
+                }
+                is UrlImporter.Fetched.Page -> {
+                    if (fetched.candidates.isEmpty()) {
+                        _linkState.value = LinkState.Idle
+                        _messages.emit(app.getString(R.string.link_none_found))
+                    } else {
+                        val stickers = fetched.candidates.filter { it.looksSticker }
+                        _linkState.value = LinkState.Results(
+                            pageUrl = fetched.pageUrl,
+                            candidates = fetched.candidates,
+                            selected = stickers.map { it.url }.toSet(),
+                            onlyStickers = stickers.isNotEmpty(),
+                        )
+                        _screen.value = Screen.LINK_RESULTS
+                    }
+                }
+                is UrlImporter.Fetched.Error -> {
+                    _linkState.value = LinkState.Idle
+                    _messages.emit(app.getString(R.string.link_error, fetched.message))
+                }
+            }
+            _busy.value = false
+        }
+    }
+
+    fun toggleLinkCandidate(url: String) {
+        _linkState.update { s ->
+            if (s is LinkState.Results) s.copy(selected = if (url in s.selected) s.selected - url else s.selected + url) else s
+        }
+    }
+
+    fun setLinkFilter(onlyStickers: Boolean) {
+        _linkState.update { s -> if (s is LinkState.Results) s.copy(onlyStickers = onlyStickers) else s }
+    }
+
+    fun linkSelectAllVisible(select: Boolean) {
+        _linkState.update { s ->
+            if (s is LinkState.Results) {
+                val visible = s.visible.map { it.url }.toSet()
+                s.copy(selected = if (select) s.selected + visible else s.selected - visible)
+            } else s
+        }
+    }
+
+    fun importLinkSelection() {
+        val state = _linkState.value as? LinkState.Results ?: return
+        val chosen = state.candidates.filter { it.url in state.selected }
+        if (chosen.isEmpty()) return
+        viewModelScope.launch {
+            _busy.value = true
+            val summary = urlImporter.importCandidates(chosen)
+            _busy.value = false
+            _messages.emit(summaryMessage(summary))
+            _linkState.value = LinkState.Idle
+            _screen.value = Screen.LIBRARY
+        }
     }
 
     // ------------------------------------------------------------ scansione
@@ -230,8 +547,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (chosen.isEmpty()) return
         _exportState.value = ExportState.Configuring(
             items = chosen.map { PackPlanner.Item(it.id, it.animated) },
-            baseName = app.getString(com.whatik.R.string.default_pack_name),
-            publisher = app.getString(com.whatik.R.string.default_publisher),
+            baseName = app.getString(R.string.default_pack_name),
+            publisher = app.getString(R.string.default_publisher),
             convertAnimatedToStatic = false,
             staticTargetId = null,
             animatedTargetId = null,
@@ -249,8 +566,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun currentPlan(config: ExportState.Configuring): PackPlanner.Plan {
-        val staticTarget = packs.value.firstOrNull { it.identifier == config.staticTargetId }?.let { it.toTarget() }
-        val animatedTarget = packs.value.firstOrNull { it.identifier == config.animatedTargetId }?.let { it.toTarget() }
+        val staticTarget = packs.value.firstOrNull { it.identifier == config.staticTargetId }?.toTarget()
+        val animatedTarget = packs.value.firstOrNull { it.identifier == config.animatedTargetId }?.toTarget()
         return PackPlanner.plan(config.items, config.convertAnimatedToStatic, staticTarget, animatedTarget)
     }
 
@@ -270,7 +587,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _exportState.value = ExportState.Running(done, totalCount, name)
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (e is CancellationException) throw e
                 StickerExporter.Result(emptyList(), listOf(StickerExporter.Failure("", e.message ?: e.javaClass.simpleName)))
             }
             _selected.value = emptySet()
@@ -284,7 +601,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deletePack(identifier: String) {
         viewModelScope.launch {
             app.packStore.delete(identifier)
-            _messages.emit(app.getString(com.whatik.R.string.msg_pack_deleted))
+            _messages.emit(app.getString(R.string.msg_pack_deleted))
         }
     }
 
@@ -302,6 +619,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
+        const val EXTRA_VIDEO_PATH = "com.whatik.extra.VIDEO_PATH"
+        const val EXTRA_VIDEO_NAME = "com.whatik.extra.VIDEO_NAME"
+        const val EXTRA_LINK = "com.whatik.extra.LINK"
+        const val DEFAULT_CLIP_MS = 3000L
+        const val MIN_CLIP_MS = 200L
+
         /** WhatsApp richiede da 1 a 3 emoji per sticker: li usa per la ricerca. */
         val DEFAULT_EMOJIS = listOf("🎵", "😀")
     }
