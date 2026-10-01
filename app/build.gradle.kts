@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Numero di build passato dalla CI (-PbuildNumber=N): diventa il versionCode, così ogni
+// APK pubblicato risulta "più nuovo" del precedente e Android lo installa come aggiornamento.
+val buildNumber: Int = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.whatik"
     compileSdk = 35
@@ -13,15 +17,30 @@ android {
         applicationId = "com.whatik"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
+    }
+
+    signingConfigs {
+        // Chiave fissa per il sideload: la chiave di debug dei runner CI cambia a ogni build e
+        // Android rifiuterebbe gli aggiornamenti. Non e' una chiave da Play Store.
+        create("sideload") {
+            storeFile = file("keystore/whatik-sideload.jks")
+            storePassword = "whatik-sideload"
+            keyAlias = "whatik"
+            keyPassword = "whatik-sideload"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("sideload")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("sideload")
         }
     }
 

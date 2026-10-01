@@ -23,6 +23,19 @@ Poi:
 - WhatsApp o WhatsApp Business installato per l'aggiunta dei pack.
 - Permesso di lettura delle immagini solo per la funzione *Cerca sticker sul telefono* (su Android 14 è possibile concedere l'accesso solo ad alcune foto); accesso a Internet solo per l'importazione da link.
 
+## Scaricare l'APK
+
+A ogni push GitHub Actions esegue i test, compila l'app e aggiorna la release **latest**. Il link all'ultima build è sempre lo stesso:
+
+**https://github.com/yarimartina/whatik/releases/latest/download/whatik-debug.apk**
+
+Sul telefono basta aprire il file e consentire l'installazione da origini sconosciute. Gli aggiornamenti si installano sopra la versione precedente perché:
+
+- ogni build ha un `versionCode` crescente (il numero della run di Actions);
+- tutte le build sono firmate con la stessa chiave `app/keystore/whatik-sideload.jks`, inclusa nel repository. È una chiave pensata solo per il sideload di questo progetto (password nel `build.gradle.kts`): per una pubblicazione sul Play Store andrebbe creata una chiave privata separata, tenuta fuori dal repo.
+
+Un tag `v*` (es. `v1.0.0`) crea inoltre una release con quel numero di versione e l'APK allegato.
+
 ## Compilare
 
 ```bash
@@ -30,7 +43,7 @@ Poi:
 ./gradlew testDebugUnitTest      # test unitari (decoder GIF, container WebP, pianificazione pack)
 ```
 
-Serve JDK 17+ e l'Android SDK (compileSdk 35). Il workflow GitHub Actions in `.github/workflows/android.yml` esegue i test, compila l'APK di debug e lo pubblica come artefatto; su un tag `v*` lo allega alla release.
+Serve JDK 17+ e l'Android SDK (compileSdk 35). Con `-PbuildNumber=N` si imposta il `versionCode` (la CI usa il numero della run).
 
 ## Struttura
 

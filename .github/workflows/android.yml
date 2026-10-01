@@ -1,7 +1,8 @@
 name: Android
 
-# Compila a ogni push su qualunque branch: il repo non ha ancora un "main" e l'APK
-# serve subito. L'artefatto "whatik-debug-apk" si scarica dalla pagina della run.
+# A ogni push su qualunque branch: test, compilazione e pubblicazione automatica dell'APK
+# nella release "latest", raggiungibile dal link fisso
+# https://github.com/<owner>/<repo>/releases/latest/download/whatik-debug.apk
 on:
   push:
     branches: ["**"]
@@ -10,6 +11,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,17 +32,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Test unitari
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testDebugUnitTest -PbuildNumber=${{ github.run_number }}
 
-      - name: Compila APK di debug
-        run: ./gradlew assembleDebug
+      - name: Compila APK
+        run: ./gradlew assembleDebug -PbuildNumber=${{ github.run_number }}
 
-      # L'APK di debug e' firmato con la chiave di debug: si installa via sideload.
-      - name: Pubblica l'APK come artefatto
+      - name: Rinomina l'APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk whatik-debug.apk
+
+      - name: Pubblica l'APK come artefatto della run
         uses: actions/upload-artifact@v4
         with:
           name: whatik-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: whatik-debug.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -50,9 +57,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Allega l'APK alla release
+      # Release "latest" ricreata a ogni push: il link di download resta sempre lo stesso.
+      - name: Aggiorna la release "latest"
+        if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          git push --delete origin latest || true
+          gh release create latest whatik-debug.apk \
+            --target "${{ github.sha }}" \
+            --latest \
+            --title "Ultima build (#${{ github.run_number }})" \
+            --notes "Build automatica n. ${{ github.run_number }} dal commit ${{ github.sha }} (branch ${{ github.ref_name }}).
+
+          Link fisso all'APK: https://github.com/${{ github.repository }}/releases/latest/download/whatik-debug.apk"
+
+      # Su un tag "v*" l'APK finisce in una release con quel numero di versione.
+      - name: Allega l'APK alla release del tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: whatik-debug.apk
           generate_release_notes: true
