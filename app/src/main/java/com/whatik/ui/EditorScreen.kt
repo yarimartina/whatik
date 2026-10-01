@@ -1,6 +1,15 @@
 package com.whatik.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -28,10 +37,12 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -40,6 +51,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.whatik.R
@@ -59,6 +71,9 @@ fun EditorScreen(
     onRangeChange: (Long, Long) -> Unit,
     onNameChange: (String) -> Unit,
     onCreate: () -> Unit,
+    onApplyProposal: (Int) -> Unit,
+    onCreateAll: () -> Unit,
+    onDetectAgain: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -80,6 +95,9 @@ fun EditorScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
+            if (state.isVideo) {
+                ProposalsSection(state, onApplyProposal, onCreateAll, onDetectAgain)
+            }
             CropPreview(state, onCropChange)
             Spacer(Modifier.height(8.dp))
             Text(
@@ -135,6 +153,69 @@ fun EditorScreen(
                 }
             }
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProposalsSection(
+    state: EditorState,
+    onApplyProposal: (Int) -> Unit,
+    onCreateAll: () -> Unit,
+    onDetectAgain: () -> Unit,
+) {
+    val proposals = state.proposals
+    when {
+        state.detecting -> {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(stringResource(R.string.editor_detecting), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        proposals == null -> Unit
+        proposals.isEmpty() -> {
+            Text(stringResource(R.string.editor_no_proposals), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onDetectAgain, enabled = !state.converting) { Text(stringResource(R.string.editor_detect_again)) }
+            Spacer(Modifier.height(8.dp))
+        }
+        else -> {
+            Text(
+                pluralStringResource(R.plurals.editor_proposals_title, proposals.size, proposals.size),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(proposals) { index, proposal ->
+                    val selected = state.selectedProposal == index
+                    val shape = RoundedCornerShape(12.dp)
+                    Image(
+                        bitmap = proposal.preview.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(84.dp)
+                            .clip(shape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
+                            .clickable(enabled = !state.converting) { onApplyProposal(index) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            val bulk = state.bulkProgress
+            if (state.converting && bulk != null) {
+                LinearProgressIndicator(progress = { bulk.first.toFloat() / bulk.second.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                Text(stringResource(R.string.editor_bulk_progress, bulk.first + 1, bulk.second), style = MaterialTheme.typography.bodySmall)
+            } else {
+                Button(onClick = onCreateAll, modifier = Modifier.fillMaxWidth(), enabled = !state.converting) {
+                    Text(stringResource(R.string.editor_create_all, proposals.size))
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.editor_manual_title), style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

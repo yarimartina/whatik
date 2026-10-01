@@ -21,6 +21,8 @@ import com.whatik.image.CropSpec
 import com.whatik.image.CroppedFrameProducer
 import com.whatik.image.FrameProducer
 import com.whatik.image.StickerConverter
+import com.whatik.image.StickerProposal
+import com.whatik.image.VideoAnalyzer
 import com.whatik.image.VideoFrameProducer
 import com.whatik.whatsapp.WhatsAppBridge
 import kotlinx.coroutines.CancellationException
@@ -96,6 +98,13 @@ data class EditorState(
     val preview: Bitmap?,
     val converting: Boolean = false,
     val progress: Pair<Int, Int>? = null,
+    /** true mentre l'analisi automatica della registrazione è in corso. */
+    val detecting: Boolean = false,
+    /** Sticker trovati automaticamente (null = analisi non ancora eseguita). */
+    val proposals: List<StickerProposal>? = null,
+    val selectedProposal: Int? = null,
+    /** Avanzamento della creazione in blocco: (sticker fatti, totale). */
+    val bulkProgress: Pair<Int, Int>? = null,
 ) {
     val isVideo: Boolean get() = source is EditorSource.Video
     val durationMs: Long get() = (source as? EditorSource.Video)?.info?.durationMs ?: 0L
@@ -279,7 +288,82 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 _screen.value = Screen.EDITOR
                 requestPreview(0)
+                detectStickers()
             }
+        }
+    }
+
+    /** Analisi automatica della registrazione: trova gli sticker animati e applica il primo. */
+    fun detectStickers() {
+        val state = _editorState.value ?: return
+        val video = state.source as? EditorSource.Video ?: return
+        if (state.detecting) return
+        _editorState.update { it?.copy(detecting = true, proposals = null, selectedProposal = null) }
+        viewModelScope.launch {
+            val found = withContext(Dispatchers.Default) {
+                runCatching { VideoAnalyzer.analyze(video.file, video.info) }.getOrDefault(emptyList())
+            }
+            val current = _editorState.value ?: return@launch
+            if (current.source !== video) return@launch
+            _editorState.value = current.copy(detecting = false, proposals = found)
+            if (found.isNotEmpty()) applyProposal(0)
+        }
+    }
+
+    fun applyProposal(index: Int) {
+        val state = _editorState.value ?: return
+        val proposal = state.proposals?.getOrNull(index) ?: return
+        _editorState.value = state.copy(
+            crop = proposal.crop,
+            startMs = proposal.startMs,
+            endMs = proposal.endMs,
+            selectedProposal = index,
+        )
+        requestPreview(proposal.startMs)
+    }
+
+    /** Crea in blocco tutti gli sticker trovati automaticamente, senza passare dall'editor manuale. */
+    fun createAllProposals() {
+        val state = _editorState.value ?: return
+        val video = state.source as? EditorSource.Video ?: return
+        val proposals = state.proposals.orEmpty()
+        if (proposals.isEmpty() || state.converting) return
+        _editorState.value = state.copy(converting = true, progress = null, bulkProgress = 0 to proposals.size)
+        viewModelScope.launch {
+            val created = ArrayList<String>()
+            val failures = ArrayList<String>()
+            for ((i, proposal) in proposals.withIndex()) {
+                _editorState.update { it?.copy(bulkProgress = i to proposals.size, progress = null) }
+                val framesDir = File(editorDir, "frames-${UUID.randomUUID()}")
+                val result = withContext(Dispatchers.Default) {
+                    runCatching {
+                        val producer = VideoFrameProducer(
+                            file = video.file, startMs = proposal.startMs, endMs = proposal.endMs,
+                            fps = VideoFrameProducer.DEFAULT_FPS, crop = proposal.crop, cacheDir = framesDir,
+                        ) { done, total -> _editorState.update { it?.copy(progress = done to total) } }
+                        val converted = StickerConverter.convert(producer, forceStatic = false)
+                        val name = if (proposals.size > 1) "${state.name.ifBlank { "sticker" }} ${i + 1}" else state.name.ifBlank { "sticker" }
+                        library.importBytes(converted.bytes, name, "video")
+                    }
+                }
+                framesDir.deleteRecursively()
+                result.onSuccess { imported ->
+                    when (imported) {
+                        is StickerLibrary.ImportResult.Added -> created.add(imported.item.id)
+                        is StickerLibrary.ImportResult.Duplicate -> created.add(imported.item.id)
+                        is StickerLibrary.ImportResult.Failed -> failures.add(imported.reason)
+                    }
+                }.onFailure { e ->
+                    if (e is CancellationException) throw e
+                    failures.add(e.message ?: e.javaClass.simpleName)
+                }
+            }
+            if (created.isNotEmpty()) _selected.value = created.toSet()
+            _messages.emit(
+                if (failures.isEmpty()) app.resources.getQuantityString(R.plurals.msg_stickers_created, created.size, created.size)
+                else app.getString(R.string.msg_stickers_partial, created.size, failures.size, failures.first()),
+            )
+            closeEditor()
         }
     }
 
@@ -311,7 +395,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateCrop(crop: CropSpec) {
-        _editorState.update { it?.copy(crop = crop.normalized()) }
+        _editorState.update { it?.copy(crop = crop.normalized(), selectedProposal = null) }
     }
 
     fun updateEditorName(name: String) {
@@ -330,7 +414,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (start != state.startMs) end = start + StickerConverter.MAX_DURATION_MS else start = end - StickerConverter.MAX_DURATION_MS
         }
         val movedEnd = end != state.endMs && start == state.startMs
-        _editorState.value = state.copy(startMs = start, endMs = end)
+        _editorState.value = state.copy(startMs = start, endMs = end, selectedProposal = null)
         requestPreview(if (movedEnd) end else start)
     }
 

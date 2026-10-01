@@ -34,7 +34,7 @@
     <string name="empty_title">No stickers yet</string>
     <string name="empty_body">The stickers you create or save on TikTok while scrolling stay locked inside TikTok: Whatik pulls them out of a screen recording or a link, converts them to WhatsApp\'s format and adds them as packs, one at a time or in bulk.</string>
     <string name="empty_step1">Open TikTok and record the screen while the sticker is visible (in the video or in the sticker panel). For a still sticker a screenshot is enough.</string>
-    <string name="empty_step2">In Whatik choose "From a screen recording", frame the sticker with the box and pick the time range: it becomes an animated sticker. Screenshots are cropped the same way.</string>
+    <string name="empty_step2">In Whatik choose "From a screen recording" (or share the video with Whatik): moving stickers are detected on their own, with box and loop length already worked out. Press "Create all" and they are in the library.</string>
     <string name="empty_step3">Got a direct link to a sticker (.awebp/.webp/.gif file) or to a page containing it? Use "From a link". Images already in the gallery are found by the automatic search.</string>
     <string name="empty_step4">Tap stickers to select them (or "Select all") and press "Copy to WhatsApp": packs are created and opened in WhatsApp (3 to 30 stickers per pack).</string>
     <string name="badge_animated">GIF</string>
@@ -99,7 +99,7 @@
     <string name="share_nothing">No image to import</string>
 
     <string name="title_editor">Crop the sticker</string>
-    <string name="editor_hint_video">Drag the box onto the sticker and pinch to resize it. Then pick the time range to animate (10 seconds max).</string>
+    <string name="editor_hint_video">If automatic detection is not enough: drag the box onto the sticker, pinch to resize it and pick the time range to animate (10 seconds max).</string>
     <string name="editor_hint_image">Drag the box onto the sticker and pinch to resize it.</string>
     <string name="editor_crop_size">Box size</string>
     <string name="editor_range">Range to animate</string>
@@ -109,6 +109,21 @@
     <string name="editor_progress">Extracting frames %1$d/%2$d</string>
     <string name="editor_converting">Converting…</string>
     <string name="msg_sticker_created">Sticker created and added to the library</string>
+    <plurals name="msg_stickers_created">
+        <item quantity="one">%d sticker created and added to the library</item>
+        <item quantity="other">%d stickers created and added to the library</item>
+    </plurals>
+    <string name="msg_stickers_partial">%1$d stickers created, %2$d failed (%3$s)</string>
+    <string name="editor_detecting">Looking for animated stickers in the recording…</string>
+    <plurals name="editor_proposals_title">
+        <item quantity="one">%d sticker found automatically</item>
+        <item quantity="other">%d stickers found automatically</item>
+    </plurals>
+    <string name="editor_no_proposals">No animated sticker found automatically (it works when the background is still and the sticker moves). Frame the sticker by hand below.</string>
+    <string name="editor_detect_again">Retry detection</string>
+    <string name="editor_create_all">Create all (%d)</string>
+    <string name="editor_bulk_progress">Sticker %1$d of %2$d</string>
+    <string name="editor_manual_title">Or adjust by hand</string>
     <string name="msg_sticker_failed">Sticker not created: %s</string>
     <string name="msg_video_unreadable">Video could not be read %s</string>
 

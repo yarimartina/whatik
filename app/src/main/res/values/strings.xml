@@ -34,7 +34,7 @@
     <string name="empty_title">Nessuno sticker ancora</string>
     <string name="empty_body">Gli sticker che crei o salvi su TikTok mentre scorri i video restano chiusi dentro TikTok: Whatik li tira fuori da una registrazione dello schermo o da un link, li converte nel formato di WhatsApp e li aggiunge come pack, uno alla volta o in massa.</string>
     <string name="empty_step1">Apri TikTok e registra lo schermo mentre lo sticker è visibile (nel video o nel pannello degli sticker). Per uno sticker fermo basta uno screenshot.</string>
-    <string name="empty_step2">In Whatik scegli "Da registrazione dello schermo", inquadra lo sticker con il riquadro e scegli l\'intervallo: diventa uno sticker animato. Gli screenshot si ritagliano allo stesso modo.</string>
+    <string name="empty_step2">In Whatik scegli "Da registrazione dello schermo" (o condividi il video con Whatik): gli sticker che si muovono vengono trovati da soli, con riquadro e durata del loop già calcolati. Premi "Crea tutti" e sono in libreria.</string>
     <string name="empty_step3">Hai il link diretto a uno sticker (file .awebp/.webp/.gif) o a una pagina che lo contiene? Usa "Da link". Le immagini già in galleria si trovano con la ricerca automatica.</string>
     <string name="empty_step4">Tocca gli sticker per selezionarli (o "Seleziona tutto") e premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
     <string name="badge_animated">GIF</string>
@@ -99,7 +99,7 @@
     <string name="share_nothing">Nessuna immagine da importare</string>
 
     <string name="title_editor">Ritaglia lo sticker</string>
-    <string name="editor_hint_video">Trascina il riquadro sullo sticker e stringi o allarga con due dita. Scegli poi l\'intervallo da animare (massimo 10 secondi).</string>
+    <string name="editor_hint_video">Se il rilevamento automatico non basta: trascina il riquadro sullo sticker, stringi o allarga con due dita e scegli l\'intervallo da animare (massimo 10 secondi).</string>
     <string name="editor_hint_image">Trascina il riquadro sullo sticker e stringi o allarga con due dita.</string>
     <string name="editor_crop_size">Dimensione del riquadro</string>
     <string name="editor_range">Intervallo da animare</string>
@@ -109,6 +109,21 @@
     <string name="editor_progress">Estrazione fotogrammi %1$d/%2$d</string>
     <string name="editor_converting">Conversione in corso…</string>
     <string name="msg_sticker_created">Sticker creato e aggiunto alla libreria</string>
+    <plurals name="msg_stickers_created">
+        <item quantity="one">%d sticker creato e aggiunto alla libreria</item>
+        <item quantity="other">%d sticker creati e aggiunti alla libreria</item>
+    </plurals>
+    <string name="msg_stickers_partial">%1$d sticker creati, %2$d non riusciti (%3$s)</string>
+    <string name="editor_detecting">Cerco gli sticker animati nella registrazione…</string>
+    <plurals name="editor_proposals_title">
+        <item quantity="one">%d sticker trovato automaticamente</item>
+        <item quantity="other">%d sticker trovati automaticamente</item>
+    </plurals>
+    <string name="editor_no_proposals">Nessuno sticker animato trovato automaticamente (funziona quando lo sfondo è fermo e lo sticker si muove). Inquadra lo sticker a mano qui sotto.</string>
+    <string name="editor_detect_again">Riprova il rilevamento</string>
+    <string name="editor_create_all">Crea tutti (%d)</string>
+    <string name="editor_bulk_progress">Sticker %1$d di %2$d</string>
+    <string name="editor_manual_title">Oppure regola a mano</string>
     <string name="msg_sticker_failed">Sticker non creato: %s</string>
     <string name="msg_video_unreadable">Video non leggibile %s</string>
 

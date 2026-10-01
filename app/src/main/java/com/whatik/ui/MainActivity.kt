@@ -165,6 +165,9 @@ fun WhatikRoot(vm: MainViewModel) {
                     onRangeChange = vm::updateRange,
                     onNameChange = vm::updateEditorName,
                     onCreate = vm::createStickerFromEditor,
+                    onApplyProposal = vm::applyProposal,
+                    onCreateAll = vm::createAllProposals,
+                    onDetectAgain = vm::detectStickers,
                 )
             } else {
                 vm.navigate(Screen.LIBRARY)
