@@ -1,0 +1,57 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configura JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configura Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test unitari
+        run: ./gradlew testDebugUnitTest
+
+      - name: Compila APK di debug
+        run: ./gradlew assembleDebug
+
+      # L'APK di debug e' firmato con la chiave di debug: si installa via sideload.
+      - name: Pubblica l'APK come artefatto
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatik-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Pubblica i risultati dei test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-test
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Allega l'APK alla release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/debug/app-debug.apk
+          generate_release_notes: true

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Whatik</string>
+    <string name="share_target_label">Salva in Whatik</string>
+
+    <string name="title_library">Whatik</string>
+    <string name="title_selected">%d selezionati</string>
+    <string name="title_scan">Sticker sul telefono</string>
+    <string name="title_packs">I tuoi pack</string>
+
+    <string name="action_import">Importa sticker</string>
+    <string name="action_import_gallery">Dalla galleria</string>
+    <string name="action_import_files">Da file</string>
+    <string name="action_import_folder">Da una cartella</string>
+    <string name="action_scan">Cerca gli sticker TikTok sul telefono</string>
+    <string name="action_packs">Pack</string>
+    <string name="action_select_all">Seleziona tutto</string>
+    <string name="action_clear_selection">Annulla selezione</string>
+    <string name="action_delete">Elimina</string>
+    <string name="action_cancel">Annulla</string>
+    <string name="action_ok">OK</string>
+    <string name="action_back">Indietro</string>
+    <string name="action_export">Copia su WhatsApp (%d)</string>
+    <string name="action_convert">Converti</string>
+    <string name="action_add_to_whatsapp">Aggiungi a WhatsApp</string>
+    <string name="action_reopen_whatsapp">Riapri su WhatsApp</string>
+    <string name="action_import_count">Importa (%d)</string>
+    <string name="action_grant_permission">Consenti l\'accesso</string>
+    <string name="action_rescan">Aggiorna</string>
+
+    <string name="empty_title">Nessuno sticker ancora</string>
+    <string name="empty_body">Whatik raccoglie gli sticker che prendi da TikTok, li converte nel formato di WhatsApp e li aggiunge come pack. Puoi copiarne uno alla volta o tutti insieme.</string>
+    <string name="empty_step1">In TikTok tieni premuto lo sticker (o l\'immagine) e scegli Salva oppure Condividi → Whatik.</string>
+    <string name="empty_step2">Se lo hai salvato in galleria, usa "Cerca gli sticker TikTok sul telefono": trova da solo la cartella di TikTok.</string>
+    <string name="empty_step3">Tocca gli sticker per selezionarli, oppure usa "Seleziona tutto" per copiarli in massa.</string>
+    <string name="empty_step4">Premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
+    <string name="badge_animated">GIF</string>
+
+    <plurals name="delete_confirm_title">
+        <item quantity="one">Eliminare %d sticker?</item>
+        <item quantity="other">Eliminare %d sticker?</item>
+    </plurals>
+    <string name="delete_confirm_body">Verranno rimossi solo dalla libreria di Whatik, non dai pack già creati.</string>
+
+    <string name="export_title">Copia su WhatsApp</string>
+    <string name="export_name">Nome del pack</string>
+    <string name="export_publisher">Autore</string>
+    <string name="export_convert_animated">Converti gli sticker animati in statici (primo fotogramma)</string>
+    <string name="export_group_static">%d sticker statici</string>
+    <string name="export_group_animated">%d sticker animati</string>
+    <string name="export_target_new">Nuovo pack</string>
+    <string name="export_target_existing">%1$s (%2$d/30)</string>
+    <plurals name="export_summary_new">
+        <item quantity="one">Verrà creato %d pack nuovo.</item>
+        <item quantity="other">Verranno creati %d pack nuovi (WhatsApp accetta massimo 30 sticker per pack).</item>
+    </plurals>
+    <plurals name="export_summary_existing">
+        <item quantity="one">%d pack esistente verrà aggiornato.</item>
+        <item quantity="other">%d pack esistenti verranno aggiornati.</item>
+    </plurals>
+    <string name="export_warning_small">WhatsApp accetta solo pack con almeno 3 sticker: %s. Potrai completarli più tardi aggiungendo altri sticker.</string>
+    <string name="export_no_whatsapp">WhatsApp non è installato: i pack verranno creati ma non potranno essere aggiunti.</string>
+
+    <string name="progress_title">Conversione in corso</string>
+    <string name="progress_body">%1$d di %2$d · %3$s</string>
+    <string name="result_title">Conversione completata</string>
+    <string name="result_failures">Non convertiti:</string>
+    <string name="result_pack_too_small">Servono almeno 3 sticker</string>
+
+    <string name="scan_permission_body">Per trovare gli sticker salvati da TikTok, Whatik ha bisogno di accedere alle immagini del telefono.</string>
+    <string name="scan_filter_tiktok">Cartelle TikTok (%d)</string>
+    <string name="scan_filter_all">Tutte le immagini (%d)</string>
+    <string name="scan_empty">Nessuna immagine trovata.</string>
+    <string name="scan_hint">Le immagini nelle cartelle di TikTok sono già selezionate. Tocca per aggiungere o togliere.</string>
+
+    <string name="packs_empty">Nessun pack ancora. Seleziona degli sticker nella libreria e tocca "Copia su WhatsApp".</string>
+    <string name="pack_count_static">%d sticker statici</string>
+    <string name="pack_count_animated">%d sticker animati</string>
+    <string name="pack_status_added">Aggiunto a WhatsApp</string>
+    <string name="pack_status_not_added">Non ancora su WhatsApp</string>
+    <string name="pack_status_too_small">Servono almeno %2$d sticker (%1$d/%2$d)</string>
+    <string name="pack_delete_confirm">Eliminare il pack "%s"? Non sarà più disponibile neanche per WhatsApp.</string>
+
+    <string name="msg_deleted">%d sticker eliminati</string>
+    <plurals name="msg_imported">
+        <item quantity="one">%d sticker importato</item>
+        <item quantity="other">%d sticker importati</item>
+    </plurals>
+    <string name="msg_duplicates">%d già presenti</string>
+    <string name="msg_failed">%1$d non importati (%2$s)</string>
+    <string name="msg_pack_deleted">Pack eliminato</string>
+    <string name="msg_whatsapp_added">Pack aggiunto a WhatsApp</string>
+    <string name="msg_whatsapp_cancelled">Aggiunta a WhatsApp annullata</string>
+    <string name="msg_whatsapp_error">WhatsApp ha rifiutato il pack: %s</string>
+    <string name="msg_whatsapp_missing">WhatsApp non è installato</string>
+    <string name="share_nothing">Nessuna immagine da importare</string>
+
+    <string name="default_pack_name">Sticker TikTok</string>
+    <string name="default_publisher">Whatik</string>
+</resources>

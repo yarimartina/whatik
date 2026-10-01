@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Whatik</string>
+    <string name="share_target_label">Save to Whatik</string>
+
+    <string name="title_library">Whatik</string>
+    <string name="title_selected">%d selected</string>
+    <string name="title_scan">Stickers on this phone</string>
+    <string name="title_packs">Your packs</string>
+
+    <string name="action_import">Import stickers</string>
+    <string name="action_import_gallery">From gallery</string>
+    <string name="action_import_files">From files</string>
+    <string name="action_import_folder">From a folder</string>
+    <string name="action_scan">Find TikTok stickers on this phone</string>
+    <string name="action_packs">Packs</string>
+    <string name="action_select_all">Select all</string>
+    <string name="action_clear_selection">Clear selection</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_back">Back</string>
+    <string name="action_export">Copy to WhatsApp (%d)</string>
+    <string name="action_convert">Convert</string>
+    <string name="action_add_to_whatsapp">Add to WhatsApp</string>
+    <string name="action_reopen_whatsapp">Reopen in WhatsApp</string>
+    <string name="action_import_count">Import (%d)</string>
+    <string name="action_grant_permission">Allow access</string>
+    <string name="action_rescan">Refresh</string>
+
+    <string name="empty_title">No stickers yet</string>
+    <string name="empty_body">Whatik collects the stickers you grab from TikTok, converts them to WhatsApp\'s format and adds them as packs. Copy one at a time or all at once.</string>
+    <string name="empty_step1">In TikTok long-press the sticker (or image) and choose Save, or Share → Whatik.</string>
+    <string name="empty_step2">If you saved it to the gallery, use "Find TikTok stickers on this phone": it locates TikTok\'s folder for you.</string>
+    <string name="empty_step3">Tap stickers to select them, or use "Select all" to copy them in bulk.</string>
+    <string name="empty_step4">Press "Copy to WhatsApp": packs are created and opened in WhatsApp (3 to 30 stickers per pack).</string>
+    <string name="badge_animated">GIF</string>
+
+    <plurals name="delete_confirm_title">
+        <item quantity="one">Delete %d sticker?</item>
+        <item quantity="other">Delete %d stickers?</item>
+    </plurals>
+    <string name="delete_confirm_body">They are removed from Whatik\'s library only, not from packs already created.</string>
+
+    <string name="export_title">Copy to WhatsApp</string>
+    <string name="export_name">Pack name</string>
+    <string name="export_publisher">Author</string>
+    <string name="export_convert_animated">Convert animated stickers to static (first frame)</string>
+    <string name="export_group_static">%d static stickers</string>
+    <string name="export_group_animated">%d animated stickers</string>
+    <string name="export_target_new">New pack</string>
+    <string name="export_target_existing">%1$s (%2$d/30)</string>
+    <plurals name="export_summary_new">
+        <item quantity="one">%d new pack will be created.</item>
+        <item quantity="other">%d new packs will be created (WhatsApp allows at most 30 stickers per pack).</item>
+    </plurals>
+    <plurals name="export_summary_existing">
+        <item quantity="one">%d existing pack will be updated.</item>
+        <item quantity="other">%d existing packs will be updated.</item>
+    </plurals>
+    <string name="export_warning_small">WhatsApp only accepts packs with at least 3 stickers: %s. You can complete them later by adding more stickers.</string>
+    <string name="export_no_whatsapp">WhatsApp is not installed: packs will be created but cannot be added.</string>
+
+    <string name="progress_title">Converting</string>
+    <string name="progress_body">%1$d of %2$d · %3$s</string>
+    <string name="result_title">Conversion complete</string>
+    <string name="result_failures">Not converted:</string>
+    <string name="result_pack_too_small">Needs at least 3 stickers</string>
+
+    <string name="scan_permission_body">To find stickers saved from TikTok, Whatik needs access to the photos on this phone.</string>
+    <string name="scan_filter_tiktok">TikTok folders (%d)</string>
+    <string name="scan_filter_all">All images (%d)</string>
+    <string name="scan_empty">No images found.</string>
+    <string name="scan_hint">Images inside TikTok folders are already selected. Tap to add or remove.</string>
+
+    <string name="packs_empty">No packs yet. Select stickers in the library and tap "Copy to WhatsApp".</string>
+    <string name="pack_count_static">%d static stickers</string>
+    <string name="pack_count_animated">%d animated stickers</string>
+    <string name="pack_status_added">Added to WhatsApp</string>
+    <string name="pack_status_not_added">Not on WhatsApp yet</string>
+    <string name="pack_status_too_small">Needs at least %2$d stickers (%1$d/%2$d)</string>
+    <string name="pack_delete_confirm">Delete the pack "%s"? It will no longer be available to WhatsApp either.</string>
+
+    <string name="msg_deleted">%d stickers deleted</string>
+    <plurals name="msg_imported">
+        <item quantity="one">%d sticker imported</item>
+        <item quantity="other">%d stickers imported</item>
+    </plurals>
+    <string name="msg_duplicates">%d already present</string>
+    <string name="msg_failed">%1$d not imported (%2$s)</string>
+    <string name="msg_pack_deleted">Pack deleted</string>
+    <string name="msg_whatsapp_added">Pack added to WhatsApp</string>
+    <string name="msg_whatsapp_cancelled">Adding to WhatsApp cancelled</string>
+    <string name="msg_whatsapp_error">WhatsApp rejected the pack: %s</string>
+    <string name="msg_whatsapp_missing">WhatsApp is not installed</string>
+    <string name="share_nothing">No image to import</string>
+
+    <string name="default_pack_name">TikTok stickers</string>
+    <string name="default_publisher">Whatik</string>
+</resources>
