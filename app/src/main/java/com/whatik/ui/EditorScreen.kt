@@ -101,7 +101,13 @@ fun EditorScreen(
             CropPreview(state, onCropChange)
             Spacer(Modifier.height(8.dp))
             Text(
-                stringResource(if (state.isVideo) R.string.editor_hint_video else R.string.editor_hint_image),
+                stringResource(
+                    when {
+                        state.isVideo -> R.string.editor_hint_video
+                        state.hasTimeline -> R.string.editor_hint_animated
+                        else -> R.string.editor_hint_image
+                    },
+                ),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(12.dp))
@@ -112,7 +118,7 @@ fun EditorScreen(
                 valueRange = CropSpec.MIN_SIZE..1f,
                 enabled = !state.converting,
             )
-            if (state.isVideo) {
+            if (state.hasTimeline) {
                 val durationSec = state.durationMs / 1000f
                 Text(stringResource(R.string.editor_range), style = MaterialTheme.typography.labelLarge)
                 RangeSlider(

@@ -1,3 +1,5 @@
+import java.time.Instant
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,9 +7,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Numero di build passato dalla CI (-PbuildNumber=N): diventa il versionCode, così ogni
-// APK pubblicato risulta "più nuovo" del precedente e Android lo installa come aggiornamento.
-val buildNumber: Int = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+// Numero di build della CI (-PbuildNumber=N), mostrato nel versionName.
+val buildNumber: String = (project.findProperty("buildNumber") as String?) ?: "local"
+
+// versionCode crescente nel tempo (minuti dal 1 gennaio 2026), uguale per CI e build locali:
+// qualunque build più recente aggiorna quella installata, purché firmata con la stessa chiave.
+val computedVersionCode: Int = (project.findProperty("versionCode") as String?)?.toIntOrNull()
+    ?: ((Instant.now().epochSecond - 1_767_225_600L) / 60L).toInt().coerceAtLeast(1)
 
 android {
     namespace = "com.whatik"
@@ -17,7 +23,7 @@ android {
         applicationId = "com.whatik"
         minSdk = 26
         targetSdk = 35
-        versionCode = buildNumber
+        versionCode = computedVersionCode
         versionName = "1.0.$buildNumber"
     }
 

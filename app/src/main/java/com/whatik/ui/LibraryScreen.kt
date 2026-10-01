@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.ImageSearch
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -65,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.whatik.R
 import com.whatik.data.StickerItem
+import com.whatik.util.AppInfo
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +91,7 @@ fun LibraryScreen(
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit,
     onCropSelected: () -> Unit,
+    onEdit: (String) -> Unit,
     onCapture: () -> Unit,
     onTikTokWeb: () -> Unit,
     onImportVideo: () -> Unit,
@@ -101,6 +105,7 @@ fun LibraryScreen(
 ) {
     var importMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(false) }
     val selectionMode = selected.isNotEmpty()
 
     Scaffold(
@@ -137,6 +142,9 @@ fun LibraryScreen(
                     } else {
                         IconButton(onClick = onOpenPacks) {
                             Icon(Icons.Default.Collections, contentDescription = stringResource(R.string.action_packs))
+                        }
+                        IconButton(onClick = { showInfo = true }) {
+                            Icon(Icons.Default.Info, contentDescription = stringResource(R.string.action_info))
                         }
                         Box {
                             IconButton(onClick = { importMenu = true }) {
@@ -204,12 +212,16 @@ fun LibraryScreen(
             if (items.isEmpty()) {
                 EmptyState(onCapture = onCapture, onImportVideo = onImportVideo, onTikTokWeb = onTikTokWeb, onImportLink = onImportLink, onScan = onScan)
             } else {
-                StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle)
+                StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle, onEdit = onEdit)
             }
             if (busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
         }
+    }
+
+    if (showInfo) {
+        InfoDialog(onDismiss = { showInfo = false })
     }
 
     if (confirmDelete) {
@@ -235,6 +247,7 @@ private fun StickerGrid(
     selected: Set<String>,
     fileOf: (StickerItem) -> File,
     onToggle: (String) -> Unit,
+    onEdit: (String) -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 104.dp),
@@ -249,6 +262,7 @@ private fun StickerGrid(
                 file = fileOf(item),
                 selected = item.id in selected,
                 onToggle = { onToggle(item.id) },
+                onEdit = { onEdit(item.id) },
             )
         }
     }
@@ -256,7 +270,7 @@ private fun StickerGrid(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onToggle: () -> Unit) {
+private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onToggle: () -> Unit, onEdit: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     val borderModifier = if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape) else Modifier
     Box(
@@ -265,7 +279,7 @@ private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onTogg
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .then(borderModifier)
-            .combinedClickable(onClick = onToggle, onLongClick = onToggle),
+            .combinedClickable(onClick = onToggle, onLongClick = onEdit),
     ) {
         AsyncImage(
             model = file,
@@ -368,4 +382,25 @@ private fun Step(number: String, text: String) {
         )
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+@Composable
+private fun InfoDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val info = remember { runCatching { AppInfo.read(context) }.getOrNull() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.info_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.info_version, info?.versionName ?: "?", info?.versionCode ?: 0L))
+                Text(stringResource(R.string.info_signature, info?.signatureSha256 ?: "?"), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.info_update_hint), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.info_longpress_hint), style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) } },
+    )
 }

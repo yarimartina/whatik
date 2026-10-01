@@ -28,6 +28,7 @@ import com.whatik.image.CroppedFrameProducer
 import com.whatik.image.FrameProducer
 import com.whatik.image.StickerConverter
 import com.whatik.image.StickerProposal
+import com.whatik.image.TrimmedFrameProducer
 import com.whatik.image.VideoAnalyzer
 import com.whatik.image.VideoFrameProducer
 import com.whatik.whatsapp.WhatsAppBridge
@@ -91,6 +92,8 @@ sealed class EditorSource {
         override val height: Int,
         val animated: Boolean,
         val replaceItemId: String?,
+        /** Durate dei fotogrammi se animato (per accorciare il loop); vuoto se statico. */
+        val durationsMs: List<Int> = emptyList(),
     ) : EditorSource()
 }
 
@@ -113,8 +116,18 @@ data class EditorState(
     val bulkProgress: Pair<Int, Int>? = null,
 ) {
     val isVideo: Boolean get() = source is EditorSource.Video
-    val durationMs: Long get() = (source as? EditorSource.Video)?.info?.durationMs ?: 0L
-    val frameCount: Int get() = if (isVideo) ((endMs - startMs) * VideoFrameProducer.DEFAULT_FPS / 1000.0).toInt().coerceAtLeast(1) else 1
+    val durationMs: Long
+        get() = when (val src = source) {
+            is EditorSource.Video -> src.info.durationMs
+            is EditorSource.Image -> src.durationsMs.sumOf { it.toLong() }
+        }
+    /** true se si può scegliere un intervallo di tempo (video o sticker animato). */
+    val hasTimeline: Boolean get() = isVideo || ((source as? EditorSource.Image)?.durationsMs?.size ?: 0) > 1
+    val frameCount: Int
+        get() = when (val src = source) {
+            is EditorSource.Video -> ((endMs - startMs) * VideoFrameProducer.DEFAULT_FPS / 1000.0).toInt().coerceAtLeast(1)
+            is EditorSource.Image -> TrimmedFrameProducer.startTimes(src.durationsMs).count { it in startMs..endMs }.coerceAtLeast(1)
+        }
 }
 
 sealed class ExportState {
@@ -177,6 +190,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch { CaptureService.running.collect { r -> _captureUi.update { it.copy(running = r) } } }
         viewModelScope.launch { CaptureService.status.collect { m -> _captureUi.update { it.copy(message = m) } } }
+        viewModelScope.launch { CaptureService.createdIds.collect { ids -> _captureUi.update { it.copy(createdIds = ids) } } }
         refreshCaptureState()
     }
 
@@ -234,6 +248,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             intent.removeExtra(EXTRA_LINK)
             importFromLink(link)
         }
+        intent.getStringArrayListExtra(EXTRA_SELECT_IDS)?.let { ids ->
+            intent.removeExtra(EXTRA_SELECT_IDS)
+            selectCaptured(ids)
+        }
+    }
+
+    /** Mostra la libreria con gli sticker indicati selezionati (dalla notifica di cattura). */
+    fun selectCaptured(ids: List<String>) {
+        val existing = items.value.map { it.id }.toSet()
+        val chosen = ids.filter { it in existing }.toSet()
+        if (chosen.isEmpty()) return
+        _selected.value = chosen
+        _screen.value = Screen.LIBRARY
+        notify(app.resources.getQuantityString(R.plurals.msg_captured_selected, chosen.size, chosen.size))
     }
 
     // ------------------------------------------------------------ selezione
@@ -412,18 +440,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val loaded = withContext(Dispatchers.IO) {
                 runCatching {
                     val bytes = library.file(item).readBytes()
+                    val producer = FrameProducer.open(bytes)
+                    val durations = if (producer.info.frameCount > 1) producer.info.durationsMs else emptyList()
                     val first = FrameProducer.firstFrame(bytes)
-                    Triple(bytes, first, item.animated)
+                    Triple(bytes, first, durations)
                 }
             }
             loaded.onFailure { _messages.emit(app.getString(R.string.msg_failed, 1, it.message ?: "")) }
-                .onSuccess { (bytes, first, animated) ->
+                .onSuccess { (bytes, first, durations) ->
+                    val total = durations.sumOf { it.toLong() }
                     _editorState.value = EditorState(
-                        source = EditorSource.Image(bytes, first.width, first.height, animated, replaceItemId = item.id),
+                        source = EditorSource.Image(bytes, first.width, first.height, durations.size > 1, replaceItemId = item.id, durationsMs = durations),
                         name = item.displayName,
-                        crop = CropSpec(0.5f, 0.5f, 0.7f),
+                        crop = CropSpec.FULL,
                         startMs = 0,
-                        endMs = 0,
+                        endMs = total,
                         previewTimeMs = 0,
                         preview = first,
                     )
@@ -458,14 +489,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun requestPreview(timeMs: Long) {
         val state = _editorState.value ?: return
-        val video = state.source as? EditorSource.Video ?: return
+        if (!state.hasTimeline) return
+        val source = state.source
         _editorState.update { it?.copy(previewTimeMs = timeMs) }
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             delay(120) // debounce mentre si trascina il cursore
-            val bitmap = withContext(Dispatchers.IO) { VideoFrameProducer.previewFrame(video.file, timeMs) }
+            val bitmap = withContext(Dispatchers.IO) {
+                when (source) {
+                    is EditorSource.Video -> VideoFrameProducer.previewFrame(source.file, timeMs)
+                    is EditorSource.Image -> runCatching { animatedFrameAt(source, timeMs) }.getOrNull()
+                }
+            }
             if (bitmap != null) _editorState.update { it?.takeIf { s -> s.previewTimeMs == timeMs }?.copy(preview = bitmap) ?: it }
         }
+    }
+
+    /** Fotogramma di uno sticker animato all'istante dato (decodifica sequenziale fino a lì). */
+    private fun animatedFrameAt(source: EditorSource.Image, timeMs: Long): Bitmap? {
+        val starts = TrimmedFrameProducer.startTimes(source.durationsMs)
+        val target = starts.indexOfLast { it <= timeMs }.coerceAtLeast(0)
+        var result: Bitmap? = null
+        FrameProducer.open(source.bytes).produce { index, frame ->
+            if (index == target) { result = frame; false } else { frame.recycle(); true }
+        }
+        return result
     }
 
     fun createStickerFromEditor() {
@@ -481,7 +529,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             file = src.file, startMs = state.startMs, endMs = state.endMs,
                             fps = VideoFrameProducer.DEFAULT_FPS, crop = state.crop, cacheDir = framesDir,
                         ) { done, total -> _editorState.update { it?.copy(progress = done to total) } }
-                        is EditorSource.Image -> CroppedFrameProducer(FrameProducer.open(src.bytes), state.crop)
+                        is EditorSource.Image -> {
+                            val cropped = CroppedFrameProducer(FrameProducer.open(src.bytes), state.crop)
+                            if (state.hasTimeline) TrimmedFrameProducer(cropped, state.startMs, state.endMs) else cropped
+                        }
                     }
                     val converted = StickerConverter.convert(producer, forceStatic = false)
                     val source = if (state.isVideo) "video" else "crop"
@@ -744,6 +795,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val EXTRA_VIDEO_PATH = "com.whatik.extra.VIDEO_PATH"
         const val EXTRA_VIDEO_NAME = "com.whatik.extra.VIDEO_NAME"
         const val EXTRA_LINK = "com.whatik.extra.LINK"
+        const val EXTRA_SELECT_IDS = MainActivity.EXTRA_SELECT_IDS
         const val DEFAULT_CLIP_MS = 3000L
         const val MIN_CLIP_MS = 200L
 

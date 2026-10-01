@@ -1,6 +1,12 @@
 package com.whatik.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,10 +34,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.whatik.R
+import com.whatik.data.StickerItem
+import java.io.File
 
 data class CaptureUiState(
     val overlayGranted: Boolean = false,
@@ -39,6 +51,8 @@ data class CaptureUiState(
     val notificationsRequired: Boolean = false,
     val running: Boolean = false,
     val message: String? = null,
+    /** Sticker creati nella sessione corrente. */
+    val createdIds: List<String> = emptyList(),
 )
 
 /** Schermata di avvio della cattura automatica con bolla sopra TikTok. */
@@ -53,6 +67,9 @@ fun CaptureScreen(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onOpenTikTok: () -> Unit,
+    capturedItems: List<StickerItem> = emptyList(),
+    fileOf: (StickerItem) -> File = { File("") },
+    onReviewCaptured: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -111,6 +128,30 @@ fun CaptureScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(it, style = MaterialTheme.typography.bodySmall)
                 }
+            }
+            if (capturedItems.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    pluralStringResource(R.plurals.capture_session_captured, capturedItems.size, capturedItems.size),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(capturedItems, key = { it.id }) { item ->
+                        AsyncImage(
+                            model = fileOf(item),
+                            contentDescription = item.displayName,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onReviewCaptured) { Text(stringResource(R.string.capture_review)) }
+                Text(stringResource(R.string.capture_hint_crop), style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.capture_tips), style = MaterialTheme.typography.bodySmall)

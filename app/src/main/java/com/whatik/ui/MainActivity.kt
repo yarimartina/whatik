@@ -37,6 +37,11 @@ import com.whatik.whatsapp.WhatsAppBridge
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
+    companion object {
+        /** Id degli sticker da selezionare all'apertura (dalla notifica di cattura). */
+        const val EXTRA_SELECT_IDS = "com.whatik.extra.SELECT_IDS"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -157,6 +162,7 @@ fun WhatikRoot(vm: MainViewModel) {
             onClearSelection = vm::clearSelection,
             onDeleteSelected = vm::deleteSelected,
             onCropSelected = { selected.singleOrNull()?.let { vm.openImageEditor(it) } },
+            onEdit = vm::openImageEditor,
             onCapture = vm::openCapture,
             onTikTokWeb = { tiktokWeb.launch(Intent(context, TikTokWebActivity::class.java)) },
             onImportVideo = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
@@ -225,6 +231,9 @@ fun WhatikRoot(vm: MainViewModel) {
             },
             onStop = vm::stopCapture,
             onOpenTikTok = { if (!openTikTok(context)) vm.notify(context.getString(R.string.capture_tiktok_missing)) },
+            capturedItems = items.filter { it.id in captureUi.createdIds },
+            fileOf = { app.library.file(it) },
+            onReviewCaptured = { vm.selectCaptured(captureUi.createdIds) },
         )
         Screen.LINK_RESULTS -> LinkResultsScreen(
             state = linkState,

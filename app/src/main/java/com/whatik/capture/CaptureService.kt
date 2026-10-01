@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -22,15 +24,18 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.Display
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.whatik.R
 import com.whatik.WhatikApp
+import com.whatik.data.StickerItem
 import com.whatik.data.StickerLibrary
 import com.whatik.image.StickerConverter
 import com.whatik.image.StickerDetector
+import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +94,8 @@ class CaptureService : Service() {
                 }
                 if (projection != null) teardown()
                 tornDown = false
+                sessionCount.value = 0
+                createdIds.value = emptyList()
                 startAsForeground()
                 if (!startProjection(resultCode, data)) {
                     status.value = getString(R.string.capture_failed, "MediaProjection")
@@ -180,9 +187,11 @@ class CaptureService : Service() {
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         display.getRealMetrics(metrics)
-        // mezza risoluzione: basta per sticker a 512 px e dimezza il lavoro
-        val width = (metrics.widthPixels / 2 / 2) * 2
-        val height = (metrics.heightPixels / 2 / 2) * 2
+        // risoluzione piena (tetto 1440 px di larghezza): a metà risoluzione gli sticker
+        // uscivano sgranati una volta portati a 512 px
+        val scale = if (metrics.widthPixels > MAX_CAPTURE_WIDTH) MAX_CAPTURE_WIDTH.toFloat() / metrics.widthPixels else 1f
+        val width = ((metrics.widthPixels * scale).toInt() / 2) * 2
+        val height = ((metrics.heightPixels * scale).toInt() / 2) * 2
         val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         reader.setOnImageAvailableListener({ onFrame(it) }, handler)
         imageReader = reader
@@ -274,39 +283,89 @@ class CaptureService : Service() {
             if (files.size < MIN_FRAMES) throw StickerConverter.ConversionException(getString(R.string.capture_too_few_frames))
             val captured = CapturedFrames(files, times)
             val proposals = captured.detect(StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f))
-            var created = 0
+            val items = ArrayList<StickerItem>()
+            var preview: Bitmap? = null
             val stamp = SimpleDateFormat("HH.mm.ss", Locale.getDefault()).format(Date())
             for ((i, proposal) in proposals.withIndex()) {
                 val converted = StickerConverter.convert(captured.producer(proposal.crop, proposal.startMs, proposal.endMs), forceStatic = false)
                 val name = if (proposals.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp"
-                when (library.importBytes(converted.bytes, name, "capture")) {
-                    is StickerLibrary.ImportResult.Added -> created++
-                    is StickerLibrary.ImportResult.Duplicate -> created++
-                    is StickerLibrary.ImportResult.Failed -> Unit
+                val item = when (val r = library.importBytes(converted.bytes, name, "capture")) {
+                    is StickerLibrary.ImportResult.Added -> r.item
+                    is StickerLibrary.ImportResult.Duplicate -> r.item
+                    is StickerLibrary.ImportResult.Failed -> null
+                }
+                if (item != null) {
+                    items.add(item)
+                    if (preview == null) preview = firstFrame(converted.bytes)
                 }
             }
-            created to proposals.size
+            CaptureOutcome(items, proposals.size, preview)
         }
         files.forEach { it.delete() }
         withContext(Dispatchers.Main) {
-            result.onSuccess { (created, found) ->
-                val text = if (found > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created)
+            result.onSuccess { outcome ->
+                val created = outcome.items.size
+                sessionCount.value += created
+                createdIds.value = createdIds.value + outcome.items.map { it.id }
+                val total = sessionCount.value
+                val text = if (outcome.found > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created)
                 else getString(R.string.capture_status_none)
                 status.value = text
-                updateNotification(text)
-                if (found > 0) {
+                updateNotification(getString(R.string.capture_notification_progress, text, total))
+                if (outcome.found > 0) {
+                    Toast.makeText(this@CaptureService, text, Toast.LENGTH_SHORT).show()
+                    notifyResult(outcome)
                     bubble?.setState(BubbleOverlay.State.RESULT, "+$created")
-                    mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE) }, 2500)
+                    mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.toString()) }, 2500)
                 } else {
-                    bubble?.setState(BubbleOverlay.State.IDLE)
+                    bubble?.setState(BubbleOverlay.State.IDLE, if (total > 0) total.toString() else null)
                 }
             }.onFailure { e ->
                 val text = getString(R.string.capture_failed, e.message ?: e.javaClass.simpleName)
                 status.value = text
                 updateNotification(text)
-                bubble?.setState(BubbleOverlay.State.IDLE)
+                bubble?.setState(BubbleOverlay.State.IDLE, sessionCount.value.takeIf { it > 0 }?.toString())
             }
         }
+    }
+
+    private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?)
+
+    /** Primo fotogramma dello sticker convertito, per l'anteprima nella notifica. */
+    private fun firstFrame(webp: ByteArray): Bitmap? = runCatching {
+        val frame = WebPContainer.parse(webp).frames.first().standalone
+        BitmapFactory.decodeByteArray(frame, 0, frame.size)
+    }.getOrNull()
+
+    /** Notifica separata con anteprima e nomi: toccandola si apre Whatik con gli sticker selezionati. */
+    private fun notifyResult(outcome: CaptureOutcome) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(RESULT_CHANNEL_ID, getString(R.string.capture_result_channel_name), NotificationManager.IMPORTANCE_DEFAULT),
+            )
+        }
+        val ids = ArrayList(createdIds.value)
+        val open = PendingIntent.getActivity(
+            this, 2,
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putStringArrayListExtra(MainActivity.EXTRA_SELECT_IDS, ids),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val names = outcome.items.joinToString(", ") { it.displayName }
+        val builder = NotificationCompat.Builder(this, RESULT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_bubble)
+            .setContentTitle(resources.getQuantityString(R.plurals.capture_result_title, outcome.items.size, outcome.items.size))
+            .setContentText(names)
+            .setSubText(resources.getQuantityString(R.plurals.capture_session_captured, sessionCount.value, sessionCount.value))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+        outcome.preview?.let { builder.setLargeIcon(it).setStyle(NotificationCompat.BigPictureStyle().bigPicture(it).bigLargeIcon(null as Bitmap?).setSummaryText(names)) }
+        manager.notify(RESULT_NOTIFICATION_ID, builder.build())
     }
 
     // ------------------------------------------------------------ chiusura
@@ -335,7 +394,10 @@ class CaptureService : Service() {
         private const val EXTRA_RESULT_CODE = "resultCode"
         private const val EXTRA_RESULT_DATA = "resultData"
         private const val CHANNEL_ID = "capture"
+        private const val RESULT_CHANNEL_ID = "capture_results"
         private const val NOTIFICATION_ID = 41
+        private const val RESULT_NOTIFICATION_ID = 42
+        private const val MAX_CAPTURE_WIDTH = 1440
         const val CAPTURE_MS = 5000L
         const val CAPTURE_FPS = 10
         private const val MIN_FRAMES = 6
@@ -345,6 +407,10 @@ class CaptureService : Service() {
 
         /** Ultimo messaggio di stato leggibile dall'interfaccia. */
         val status: MutableStateFlow<String?> = MutableStateFlow(null)
+
+        /** Sticker catturati nella sessione corrente (contatore e id, per mostrarli e selezionarli). */
+        val sessionCount = MutableStateFlow(0)
+        val createdIds = MutableStateFlow<List<String>>(emptyList())
 
         fun start(context: android.content.Context, resultCode: Int, data: Intent) {
             val intent = Intent(context, CaptureService::class.java)

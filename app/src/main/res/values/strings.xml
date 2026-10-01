@@ -14,6 +14,12 @@
     <string name="action_import_video">Da registrazione dello schermo (video)</string>
     <string name="action_import_link">Da link</string>
     <string name="action_crop">Ritaglia</string>
+    <string name="action_info">Informazioni</string>
+    <string name="info_title">Whatik</string>
+    <string name="info_version">Versione %1$s (codice %2$d)</string>
+    <string name="info_signature">Firma installata: %s</string>
+    <string name="info_update_hint">Se un aggiornamento non si installa, l\'app sul telefono è stata firmata con un\'altra chiave (succede con le primissime build): disinstallala una volta e reinstalla dal link. Da lì in poi gli aggiornamenti funzionano, perché ogni build ha la stessa firma e un numero di versione sempre crescente.</string>
+    <string name="info_longpress_hint">Tieni premuto uno sticker nella libreria per ritagliarlo o accorciarne l\'animazione.</string>
     <string name="action_import_gallery">Dalla galleria</string>
     <string name="action_import_files">Da file</string>
     <string name="action_import_folder">Da una cartella</string>
@@ -103,6 +109,7 @@
     <string name="title_editor">Ritaglia lo sticker</string>
     <string name="editor_hint_video">Se il rilevamento automatico non basta: trascina il riquadro sullo sticker, stringi o allarga con due dita e scegli l\'intervallo da animare (massimo 10 secondi).</string>
     <string name="editor_hint_image">Trascina il riquadro sullo sticker e stringi o allarga con due dita.</string>
+    <string name="editor_hint_animated">Trascina il riquadro sullo sticker e stringi o allarga con due dita. Con i cursori puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
     <string name="editor_crop_size">Dimensione del riquadro</string>
     <string name="editor_range">Intervallo da animare</string>
     <string name="editor_duration">%1$.1f s · %2$d fotogrammi</string>
@@ -164,6 +171,22 @@
     </plurals>
     <string name="capture_status_none">Nessuno sticker animato trovato in questa cattura: tieni fermo lo schermo con lo sticker in vista</string>
     <string name="capture_status_stopped">Sessione terminata</string>
+    <string name="capture_notification_progress">%1$s · totale sessione: %2$d</string>
+    <string name="capture_result_channel_name">Sticker catturati</string>
+    <plurals name="capture_result_title">
+        <item quantity="one">%d sticker catturato</item>
+        <item quantity="other">%d sticker catturati</item>
+    </plurals>
+    <plurals name="capture_session_captured">
+        <item quantity="one">%d sticker catturato in questa sessione</item>
+        <item quantity="other">%d sticker catturati in questa sessione</item>
+    </plurals>
+    <string name="capture_review">Vedi e seleziona nella libreria</string>
+    <string name="capture_hint_crop">Sticker venuto male? Nella libreria tieni premuto lo sticker per ritagliarlo o accorciare l\'animazione.</string>
+    <plurals name="msg_captured_selected">
+        <item quantity="one">%d sticker catturato selezionato: tienilo premuto per ritagliarlo</item>
+        <item quantity="other">%d sticker catturati selezionati: tieni premuto uno sticker per ritagliarlo</item>
+    </plurals>
     <string name="capture_too_few_frames">troppi pochi fotogrammi: lo schermo non cambiava</string>
     <string name="capture_failed">Cattura non riuscita: %s</string>
     <string name="capture_tips">Suggerimenti: durante i 5 secondi non scorrere. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi non vengono rilevati: per quelli usa uno screenshot e "Ritaglia".</string>

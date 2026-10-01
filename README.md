@@ -6,10 +6,10 @@ App Android che prende gli sticker di TikTok, li converte nel formato richiesto 
 
 Gli sticker che crei (Condividi → *Crea sticker*) o salvi mentre scorri i video restano nella raccolta di TikTok, che non offre un pulsante di download, non li espone nelle API ufficiali e non li rende leggibili alle altre app. Whatik li tira fuori in questi modi, dal più automatico al più manuale:
 
-1. **Cattura automatica (bolla)**: da Whatik avvii una sessione, concedi la cattura dello schermo e si apre TikTok con una bolla di Whatik sopra. Quando gli sticker sono visibili tocchi la bolla: Whatik cattura 5 secondi di schermo (proiezione a mezza risoluzione, 10 fotogrammi al secondo), trova le regioni che si muovono mentre l'interfaccia resta ferma, stima il loop di ciascuna e aggiunge gli sticker alla libreria, senza registratore né ritaglio. Tieni premuta la bolla per terminare. Richiede il permesso di sovrapposizione e la conferma di cattura dello schermo (su Android 14 e successivi la conferma è richiesta a ogni sessione).
+1. **Cattura automatica (bolla)**: da Whatik avvii una sessione, concedi la cattura dello schermo e si apre TikTok con una bolla di Whatik sopra. Quando gli sticker sono visibili tocchi la bolla: Whatik cattura 5 secondi di schermo (proiezione a piena risoluzione, 10 fotogrammi al secondo), trova le regioni che si muovono mentre l'interfaccia resta ferma, stima il loop di ciascuna e aggiunge gli sticker alla libreria, senza registratore né ritaglio. La bolla mostra il totale della sessione, e ogni cattura produce una notifica con anteprima e nomi degli sticker: toccandola si apre Whatik con quegli sticker selezionati. Tieni premuta la bolla per terminare. Richiede il permesso di sovrapposizione e la conferma di cattura dello schermo (su Android 14 e successivi la conferma è richiesta a ogni sessione).
 2. **Registrazione dello schermo** (funziona sempre, anche per gli sticker animati): registra lo schermo di TikTok mentre gli sticker sono visibili (anche più d'uno, per esempio il pannello della raccolta), poi condividi il video con Whatik o scegli *Da registrazione dello schermo*. Whatik analizza la registrazione da sola (finestra senza scorrimenti, regioni in movimento, riquadro e durata del loop per autocorrelazione) e con *Crea tutti* converte ogni sticker in WebP animato. L'editor manuale (riquadro trascinabile, pizzico, cursori di tempo) resta disponibile per i casi in cui il rilevamento non basta, per esempio uno sticker sopra un video in riproduzione.
 3. **Account TikTok (web, sperimentale)**: *Dal tuo account TikTok* apre il sito di TikTok dentro Whatik. Dopo l'accesso, aprendo il pannello degli sticker nei messaggi la pagina scarica i file `.awebp` della raccolta; Whatik li intercetta e li propone per l'importazione in blocco. Dipende da come TikTok serve il sito (accesso, captcha, se il pannello web mostra la raccolta personale), quindi può smettere di funzionare senza preavviso.
-4. **Screenshot**: per uno sticker fermo basta uno screenshot; si importa e si ritaglia con l'editor (azione *Ritaglia* quando è selezionato un solo sticker).
+4. **Screenshot e ritocchi**: per uno sticker fermo basta uno screenshot; si importa e si ritaglia con l'editor. Qualunque sticker in libreria si può correggere tenendolo premuto (o con l'azione *Ritaglia* quando è il solo selezionato): riquadro di ritaglio e, per gli sticker animati, intervallo da tenere.
 5. **Link**: con *Da link* (o condividendo un link con Whatik) si incolla l'URL diretto di un file `.awebp`/`.webp`/`.gif` oppure di una pagina: Whatik scarica l'immagine o elenca tutte le immagini trovate nella pagina, con i probabili sticker già selezionati.
 6. **Galleria**: le immagini già salvate si trovano con *Cerca gli sticker TikTok sul telefono* (cartelle TikTok già selezionate), con il photo picker, da file o da un'intera cartella.
 
@@ -33,10 +33,12 @@ A ogni push GitHub Actions esegue i test, compila l'app e aggiorna la release **
 
 Sul telefono basta aprire il file e consentire l'installazione da origini sconosciute. Gli aggiornamenti si installano sopra la versione precedente perché:
 
-- ogni build ha un `versionCode` crescente (il numero della run di Actions);
+- ogni build ha un `versionCode` crescente nel tempo (minuti dal 1° gennaio 2026, calcolato alla compilazione, anche per le build locali);
 - tutte le build sono firmate con la stessa chiave `app/keystore/whatik-sideload.jks`, inclusa nel repository. È una chiave pensata solo per il sideload di questo progetto (password nel `build.gradle.kts`): per una pubblicazione sul Play Store andrebbe creata una chiave privata separata, tenuta fuori dal repo.
 
 Un tag `v*` (es. `v1.0.0`) crea inoltre una release con quel numero di versione e l'APK allegato.
+
+**Se un aggiornamento non si installa** ("app non installata", "pacchetto in conflitto"): la copia sul telefono è stata firmata con un'altra chiave. È il caso delle primissime build (APK inviato a mano, artefatto della run #1), firmate con chiavi temporanee. Disinstallala una volta e reinstalla dal link: da lì in poi gli aggiornamenti funzionano. La schermata *Informazioni* nell'app mostra versione e impronta della firma installata; quella della chiave del repository inizia con `42:5D:1E:18`.
 
 ## Compilare
 
