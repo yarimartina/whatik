@@ -1,10 +1,11 @@
 name: Android
 
+# Compila a ogni push su qualunque branch: il repo non ha ancora un "main" e l'APK
+# serve subito. L'artefatto "whatik-debug-apk" si scarica dalla pagina della run.
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
