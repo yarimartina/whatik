@@ -49,6 +49,9 @@ object StickerDetector {
         val minClipMs: Long = 300,
         /** Numero minimo di confronti consecutivi stabili per considerare una finestra. */
         val minStableDiffs: Int = 3,
+        /** Fasce superiore e inferiore da ignorare (barra di stato, barra di navigazione). */
+        val ignoreTopFraction: Float = 0f,
+        val ignoreBottomFraction: Float = 0f,
     )
 
     /**
@@ -91,8 +94,12 @@ object StickerDetector {
         }
         val alive = BooleanArray(pixels)
         var aliveCount = 0
+        val topLimit = (height * params.ignoreTopFraction).roundToInt()
+        val bottomLimit = height - (height * params.ignoreBottomFraction).roundToInt()
         for (p in 0 until pixels) {
             freq[p] /= numDiffs
+            val row = p / width
+            if (row < topLimit || row >= bottomLimit) continue
             if (freq[p] >= params.minChangeFrequency) { alive[p] = true; aliveCount++ }
         }
         if (aliveCount == 0) return emptyList()

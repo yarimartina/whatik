@@ -1,8 +1,13 @@
 package com.whatik.ui
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.whatik.R
 import com.whatik.WhatikApp
+import com.whatik.capture.CaptureService
 import com.whatik.data.MediaScanner
 import com.whatik.data.StickerPack
 import com.whatik.ui.theme.WhatikTheme
@@ -51,7 +57,18 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshWhatsAppStatus()
+        viewModel.refreshCaptureState()
     }
+}
+
+/** Apre TikTok (normale o Lite) se installato; false se non trovato. */
+fun openTikTok(context: Context): Boolean {
+    for (pkg in listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.zhiliaoapp.musically.go")) {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg) ?: continue
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return true
+    }
+    return false
 }
 
 @Composable
@@ -102,6 +119,23 @@ fun WhatikRoot(vm: MainViewModel) {
         }
         vm.refreshWhatsAppStatus()
     }
+    val overlaySettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { vm.refreshCaptureState() }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refreshCaptureState() }
+    val projectionConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            CaptureService.start(context, result.resultCode, data)
+            if (!openTikTok(context)) vm.notify(context.getString(R.string.capture_tiktok_missing))
+        } else {
+            vm.notify(context.getString(R.string.capture_cancelled))
+        }
+    }
+    val tiktokWeb = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val urls = result.data?.getStringArrayListExtra(TikTokWebActivity.EXTRA_URLS).orEmpty()
+        if (urls.isNotEmpty()) vm.showRemoteCandidates(urls, "TikTok") else if (result.resultCode == Activity.RESULT_OK) vm.notify(context.getString(R.string.link_none_found))
+    }
+    val captureUi by vm.captureUi.collectAsStateWithLifecycle()
+
     val addToWhatsApp: (StickerPack) -> Unit = { pack ->
         val intent = WhatsAppBridge.addPackIntent(context, pack)
         if (intent == null) vm.notify(context.getString(R.string.msg_whatsapp_missing)) else whatsAppLauncher.launch(intent)
@@ -123,6 +157,8 @@ fun WhatikRoot(vm: MainViewModel) {
             onClearSelection = vm::clearSelection,
             onDeleteSelected = vm::deleteSelected,
             onCropSelected = { selected.singleOrNull()?.let { vm.openImageEditor(it) } },
+            onCapture = vm::openCapture,
+            onTikTokWeb = { tiktokWeb.launch(Intent(context, TikTokWebActivity::class.java)) },
             onImportVideo = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
             onImportLink = { showLinkDialog = true },
             onImportGallery = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
@@ -173,6 +209,23 @@ fun WhatikRoot(vm: MainViewModel) {
                 vm.navigate(Screen.LIBRARY)
             }
         }
+        Screen.CAPTURE -> CaptureScreen(
+            state = captureUi,
+            snackbarHost = snackbarHost,
+            onBack = { vm.back() },
+            onGrantOverlay = {
+                overlaySettings.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
+            },
+            onGrantNotifications = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onStart = {
+                val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                projectionConsent.launch(manager.createScreenCaptureIntent())
+            },
+            onStop = vm::stopCapture,
+            onOpenTikTok = { if (!openTikTok(context)) vm.notify(context.getString(R.string.capture_tiktok_missing)) },
+        )
         Screen.LINK_RESULTS -> LinkResultsScreen(
             state = linkState,
             busy = busy,

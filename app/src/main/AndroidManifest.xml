@@ -4,6 +4,12 @@
     <!-- Importazione da link (file .awebp degli sticker sul CDN di TikTok, pagine web) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Cattura automatica: bolla sopra TikTok + proiezione dello schermo in un servizio in primo piano -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Lettura delle immagini salvate (ricerca degli sticker TikTok in galleria) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
@@ -15,6 +21,10 @@
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+        <!-- per aprire TikTok all'avvio della cattura automatica -->
+        <package android:name="com.zhiliaoapp.musically" />
+        <package android:name="com.ss.android.ugc.trill" />
+        <package android:name="com.zhiliaoapp.musically.go" />
     </queries>
 
     <application
@@ -69,6 +79,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- Sito di TikTok dentro l'app (modalità sperimentale di raccolta degli sticker) -->
+        <activity
+            android:name=".ui.TikTokWebActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false" />
+
+        <!-- Sessione di cattura automatica (proiezione schermo + bolla) -->
+        <service
+            android:name=".capture.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- ContentProvider letto da WhatsApp per importare i pack -->
         <provider

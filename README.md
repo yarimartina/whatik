@@ -4,12 +4,14 @@ App Android che prende gli sticker di TikTok, li converte nel formato richiesto 
 
 ## Come funziona
 
-Gli sticker che crei (Condividi → *Crea sticker*) o salvi mentre scorri i video restano nella raccolta di TikTok, che non offre un pulsante di download e che le altre app non possono leggere. Whatik li tira fuori in questi modi:
+Gli sticker che crei (Condividi → *Crea sticker*) o salvi mentre scorri i video restano nella raccolta di TikTok, che non offre un pulsante di download, non li espone nelle API ufficiali e non li rende leggibili alle altre app. Whatik li tira fuori in questi modi, dal più automatico al più manuale:
 
-1. **Registrazione dello schermo** (il metodo che funziona sempre, anche per gli sticker animati): registra lo schermo di TikTok mentre gli sticker sono visibili (anche più d'uno, per esempio il pannello della raccolta), poi condividi il video con Whatik o scegli *Da registrazione dello schermo*. Whatik analizza la registrazione da sola: individua la parte senza scorrimenti, trova le regioni che si muovono (gli sticker) mentre l'interfaccia resta ferma, calcola per ciascuna il riquadro e la durata del loop (autocorrelazione del movimento) e mostra le anteprime. Con *Crea tutti* ogni sticker viene estratto a 10 fps e convertito in WebP animato, senza inquadrare nulla a mano. L'editor manuale (riquadro trascinabile, pizzico, cursori di tempo) resta disponibile per i casi in cui il rilevamento non basta, per esempio uno sticker sopra un video in riproduzione.
-2. **Screenshot**: per uno sticker fermo basta uno screenshot; si importa e si ritaglia con lo stesso editor (azione *Ritaglia* quando è selezionato un solo sticker).
-3. **Link**: gli sticker TikTok sono file WebP animati (`.awebp`) sul CDN di TikTok. Con *Da link* (o condividendo un link con Whatik) si incolla l'URL diretto del file oppure di una pagina: Whatik scarica l'immagine o elenca tutte le immagini trovate nella pagina, con i probabili sticker già selezionati.
-4. **Galleria**: le immagini già salvate si trovano con *Cerca gli sticker TikTok sul telefono* (cartelle TikTok già selezionate), con il photo picker, da file o da un'intera cartella.
+1. **Cattura automatica (bolla)**: da Whatik avvii una sessione, concedi la cattura dello schermo e si apre TikTok con una bolla di Whatik sopra. Quando gli sticker sono visibili tocchi la bolla: Whatik cattura 5 secondi di schermo (proiezione a mezza risoluzione, 10 fotogrammi al secondo), trova le regioni che si muovono mentre l'interfaccia resta ferma, stima il loop di ciascuna e aggiunge gli sticker alla libreria, senza registratore né ritaglio. Tieni premuta la bolla per terminare. Richiede il permesso di sovrapposizione e la conferma di cattura dello schermo (su Android 14 e successivi la conferma è richiesta a ogni sessione).
+2. **Registrazione dello schermo** (funziona sempre, anche per gli sticker animati): registra lo schermo di TikTok mentre gli sticker sono visibili (anche più d'uno, per esempio il pannello della raccolta), poi condividi il video con Whatik o scegli *Da registrazione dello schermo*. Whatik analizza la registrazione da sola (finestra senza scorrimenti, regioni in movimento, riquadro e durata del loop per autocorrelazione) e con *Crea tutti* converte ogni sticker in WebP animato. L'editor manuale (riquadro trascinabile, pizzico, cursori di tempo) resta disponibile per i casi in cui il rilevamento non basta, per esempio uno sticker sopra un video in riproduzione.
+3. **Account TikTok (web, sperimentale)**: *Dal tuo account TikTok* apre il sito di TikTok dentro Whatik. Dopo l'accesso, aprendo il pannello degli sticker nei messaggi la pagina scarica i file `.awebp` della raccolta; Whatik li intercetta e li propone per l'importazione in blocco. Dipende da come TikTok serve il sito (accesso, captcha, se il pannello web mostra la raccolta personale), quindi può smettere di funzionare senza preavviso.
+4. **Screenshot**: per uno sticker fermo basta uno screenshot; si importa e si ritaglia con l'editor (azione *Ritaglia* quando è selezionato un solo sticker).
+5. **Link**: con *Da link* (o condividendo un link con Whatik) si incolla l'URL diretto di un file `.awebp`/`.webp`/`.gif` oppure di una pagina: Whatik scarica l'immagine o elenca tutte le immagini trovate nella pagina, con i probabili sticker già selezionati.
+6. **Galleria**: le immagini già salvate si trovano con *Cerca gli sticker TikTok sul telefono* (cartelle TikTok già selezionate), con il photo picker, da file o da un'intera cartella.
 
 Poi:
 
@@ -21,7 +23,7 @@ Poi:
 
 - Android 8.0 (API 26) o superiore.
 - WhatsApp o WhatsApp Business installato per l'aggiunta dei pack.
-- Permesso di lettura delle immagini solo per la funzione *Cerca sticker sul telefono* (su Android 14 è possibile concedere l'accesso solo ad alcune foto); accesso a Internet solo per l'importazione da link.
+- Permesso di lettura delle immagini solo per la funzione *Cerca sticker sul telefono* (su Android 14 è possibile concedere l'accesso solo ad alcune foto); accesso a Internet solo per l'importazione da link e per la modalità web; sovrapposizione, cattura dello schermo e notifiche solo per la cattura automatica.
 
 ## Scaricare l'APK
 
@@ -55,6 +57,8 @@ Serve JDK 17+ e l'Android SDK (compileSdk 35). Con `-PbuildNumber=N` si imposta 
 | `image/StickerConverter.kt` | Ridimensiona a 512×512, codifica WebP e rispetta i limiti di peso e durata |
 | `image/VideoFrameProducer.kt` / `image/Crop.kt` | Estrazione dei fotogrammi da una registrazione dello schermo (con cache su disco) e ritaglio quadrato |
 | `image/StickerDetector.kt` / `image/VideoAnalyzer.kt` | Rilevamento automatico degli sticker animati in una registrazione (finestra stabile, pixel in movimento, componenti connesse, periodo del loop) |
+| `capture/` | Sessione di cattura automatica: servizio in primo piano con MediaProjection, bolla flottante, fotogrammi catturati → rilevatore → libreria |
+| `ui/TikTokWebActivity.kt` | Sito di TikTok in una WebView con intercettazione dei file sticker (modalità sperimentale) |
 | `data/UrlImporter.kt` | Importazione da link: file immagine diretto o ricerca delle immagini in una pagina |
 | `data/StickerLibrary.kt` | Libreria degli sticker importati (deduplica per SHA-256, importazione da URI e cartelle) |
 | `data/MediaScanner.kt` | Ricerca nel MediaStore con riconoscimento delle cartelle TikTok |

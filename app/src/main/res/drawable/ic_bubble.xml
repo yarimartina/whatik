@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- faccina sticker: usata nella bolla flottante e nella notifica -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2 C6.48,2 2,6.48 2,12 s4.48,10 10,10 s10,-4.48 10,-10 S17.52,2 12,2 z M12,20 c-4.41,0 -8,-3.59 -8,-8 s3.59,-8 8,-8 s8,3.59 8,8 s-3.59,8 -8,8 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15.5,11 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8.5,11 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,17.5 c2.33,0 4.31,-1.46 5.11,-3.5 L6.89,14 c0.8,2.04 2.78,3.5 5.11,3.5 z" />
+</vector>

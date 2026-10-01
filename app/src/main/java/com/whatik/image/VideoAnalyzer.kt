@@ -49,14 +49,8 @@ object VideoAnalyzer {
                 val raw = frameAt(retriever, timeMs, aw * 2, ah * 2) ?: continue
                 val scaled = if (raw.width == aw && raw.height == ah) raw else Bitmap.createScaledBitmap(raw, aw, ah, true)
                 if (scaled !== raw) raw.recycle()
-                scaled.getPixels(buffer, 0, aw, 0, 0, aw, ah)
+                frames.add(toGray(scaled, buffer))
                 scaled.recycle()
-                val gray = IntArray(aw * ah)
-                for (p in buffer.indices) {
-                    val c = buffer[p]
-                    gray[p] = (((c shr 16) and 0xFF) * 299 + ((c shr 8) and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
-                }
-                frames.add(gray)
                 keptTimes.add(timeMs)
                 onProgress?.invoke(i + 1, times.size)
             }
@@ -74,6 +68,17 @@ object VideoAnalyzer {
         } finally {
             retriever.release()
         }
+    }
+
+    /** Converte un bitmap in scala di grigi (0..255); [buffer] deve avere width*height elementi. */
+    fun toGray(bitmap: Bitmap, buffer: IntArray = IntArray(bitmap.width * bitmap.height)): IntArray {
+        bitmap.getPixels(buffer, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val gray = IntArray(bitmap.width * bitmap.height)
+        for (p in gray.indices) {
+            val c = buffer[p]
+            gray[p] = (((c shr 16) and 0xFF) * 299 + ((c shr 8) and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
+        }
+        return gray
     }
 
     private fun frameAt(retriever: MediaMetadataRetriever, timeMs: Long, maxW: Int, maxH: Int): Bitmap? {

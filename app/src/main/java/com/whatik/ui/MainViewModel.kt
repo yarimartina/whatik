@@ -2,8 +2,14 @@ package com.whatik.ui
 
 import android.app.Application
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.ContextCompat
+import com.whatik.capture.CaptureService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.whatik.R
@@ -40,7 +46,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-enum class Screen { LIBRARY, SCAN, PACKS, EDITOR, LINK_RESULTS }
+enum class Screen { LIBRARY, SCAN, PACKS, EDITOR, LINK_RESULTS, CAPTURE }
 
 sealed class ScanState {
     data object Idle : ScanState()
@@ -164,6 +170,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var exportJob: Job? = null
     private var previewJob: Job? = null
     private val editorDir = File(app.cacheDir, "editor")
+
+    private val _captureUi = MutableStateFlow(CaptureUiState(notificationsRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU))
+    val captureUi: StateFlow<CaptureUiState> = _captureUi.asStateFlow()
+
+    init {
+        viewModelScope.launch { CaptureService.running.collect { r -> _captureUi.update { it.copy(running = r) } } }
+        viewModelScope.launch { CaptureService.status.collect { m -> _captureUi.update { it.copy(message = m) } } }
+        refreshCaptureState()
+    }
+
+    // ------------------------------------------------------------ cattura automatica
+
+    fun openCapture() {
+        refreshCaptureState()
+        _screen.value = Screen.CAPTURE
+    }
+
+    fun refreshCaptureState() {
+        val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        _captureUi.update { it.copy(overlayGranted = Settings.canDrawOverlays(app), notificationsGranted = notifications) }
+    }
+
+    fun stopCapture() = CaptureService.stop(app)
+
+    /** Sticker raccolti dalla WebView di TikTok: li mostriamo nella lista di importazione, tutti selezionati. */
+    fun showRemoteCandidates(urls: List<String>, pageUrl: String) {
+        if (urls.isEmpty()) return
+        val candidates = urls.map { RemoteCandidate(it, UrlImporter.nameFromUrl(it), true) }
+        _linkState.value = LinkState.Results(pageUrl, candidates, candidates.map { it.url }.toSet(), onlyStickers = false)
+        _screen.value = Screen.LINK_RESULTS
+    }
 
     // ------------------------------------------------------------ navigazione
 

@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
@@ -86,6 +88,8 @@ fun LibraryScreen(
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit,
     onCropSelected: () -> Unit,
+    onCapture: () -> Unit,
+    onTikTokWeb: () -> Unit,
     onImportVideo: () -> Unit,
     onImportLink: () -> Unit,
     onImportGallery: () -> Unit,
@@ -140,6 +144,16 @@ fun LibraryScreen(
                             }
                             DropdownMenu(expanded = importMenu, onDismissRequest = { importMenu = false }) {
                                 DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_capture)) },
+                                    leadingIcon = { Icon(Icons.Default.RadioButtonChecked, null) },
+                                    onClick = { importMenu = false; onCapture() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_tiktok_web)) },
+                                    leadingIcon = { Icon(Icons.Default.AccountCircle, null) },
+                                    onClick = { importMenu = false; onTikTokWeb() },
+                                )
+                                DropdownMenuItem(
                                     text = { Text(stringResource(R.string.action_import_video)) },
                                     leadingIcon = { Icon(Icons.Default.Videocam, null) },
                                     onClick = { importMenu = false; onImportVideo() },
@@ -188,7 +202,7 @@ fun LibraryScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (items.isEmpty()) {
-                EmptyState(onImportVideo = onImportVideo, onImportLink = onImportLink, onScan = onScan, onImportGallery = onImportGallery)
+                EmptyState(onCapture = onCapture, onImportVideo = onImportVideo, onTikTokWeb = onTikTokWeb, onImportLink = onImportLink, onScan = onScan)
             } else {
                 StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle)
             }
@@ -287,7 +301,7 @@ private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onTogg
 }
 
 @Composable
-private fun EmptyState(onImportVideo: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit, onImportGallery: () -> Unit) {
+private fun EmptyState(onCapture: () -> Unit, onImportVideo: () -> Unit, onTikTokWeb: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -311,10 +325,22 @@ private fun EmptyState(onImportVideo: () -> Unit, onImportLink: () -> Unit, onSc
             Step("4", stringResource(R.string.empty_step4))
         }
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onImportVideo, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onCapture, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.RadioButtonChecked, null)
+            Spacer(Modifier.size(8.dp))
+            Text(stringResource(R.string.action_capture))
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onImportVideo, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Videocam, null)
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.action_import_video))
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onTikTokWeb, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.AccountCircle, null)
+            Spacer(Modifier.size(8.dp))
+            Text(stringResource(R.string.action_tiktok_web))
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onImportLink, modifier = Modifier.fillMaxWidth()) {
@@ -327,12 +353,6 @@ private fun EmptyState(onImportVideo: () -> Unit, onImportLink: () -> Unit, onSc
             Icon(Icons.Default.ImageSearch, null)
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.action_scan))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onImportGallery, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.PhotoLibrary, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_import_gallery))
         }
     }
 }
