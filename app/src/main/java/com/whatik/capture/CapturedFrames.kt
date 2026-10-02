@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import com.whatik.image.CropSpec
 import com.whatik.image.FrameInfo
 import com.whatik.image.FrameProducer
+import com.whatik.image.StaticStickerFinder
 import com.whatik.image.StickerConverter
 import com.whatik.image.StickerDetector
 import com.whatik.image.VideoAnalyzer
@@ -49,6 +50,25 @@ class CapturedFrames(val files: List<File>, val timesMs: List<Long>) {
     }
 
     fun producer(crop: CropSpec, startMs: Long, endMs: Long): FrameProducer = CapturedFrameProducer(this, crop, startMs, endMs)
+
+    /**
+     * Riquadro di uno sticker fermo attorno al punto (in pixel del fotogramma), stimato sul primo
+     * fotogramma ridotto a ~[analysisWidth] px di larghezza.
+     */
+    fun staticCropAround(px: Int, py: Int, analysisWidth: Int = 480): CropSpec {
+        var sample = 1
+        while (width / (sample * 2) >= analysisWidth) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = BitmapFactory.decodeFile(files[0].absolutePath, opts)
+            ?: throw StickerConverter.ConversionException("Fotogramma catturato non leggibile")
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val sx = px * bitmap.width / width
+        val sy = py * bitmap.height / height
+        val result = StaticStickerFinder.find(pixels, bitmap.width, bitmap.height, sx, sy)
+        bitmap.recycle()
+        return StaticStickerFinder.toCrop(result.box, bitmap.width, bitmap.height)
+    }
 
     fun delete() {
         files.forEach { it.delete() }

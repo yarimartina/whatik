@@ -205,6 +205,7 @@ fun WhatikRoot(vm: MainViewModel) {
                     onApplyProposal = vm::applyProposal,
                     onCreateAll = vm::createAllProposals,
                     onDetectAgain = vm::detectStickers,
+                    onKeepOriginalChange = vm::updateKeepOriginal,
                 )
             } else {
                 vm.navigate(Screen.LIBRARY)

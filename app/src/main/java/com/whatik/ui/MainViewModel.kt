@@ -114,6 +114,8 @@ data class EditorState(
     val selectedProposal: Int? = null,
     /** Avanzamento della creazione in blocco: (sticker fatti, totale). */
     val bulkProgress: Pair<Int, Int>? = null,
+    /** Ritagliando uno sticker della libreria: true = l'originale resta, false = viene sostituito. */
+    val keepOriginal: Boolean = true,
 ) {
     val isVideo: Boolean get() = source is EditorSource.Video
     val durationMs: Long
@@ -449,6 +451,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         endMs = total,
                         previewTimeMs = 0,
                         preview = first,
+                        // uno sticker gia' ritagliato (cattura, video) si corregge sostituendolo;
+                        // uno screenshot o un'immagine importata potrebbe contenere altri sticker
+                        keepOriginal = item.source !in setOf("capture", "video", "crop"),
                     )
                     _screen.value = Screen.EDITOR
                 }
@@ -461,6 +466,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateEditorName(name: String) {
         _editorState.update { it?.copy(name = name.take(60)) }
+    }
+
+    fun updateKeepOriginal(keep: Boolean) {
+        _editorState.update { it?.copy(keepOriginal = keep) }
     }
 
     /** Aggiorna l'intervallo (max 10 s) e mostra l'anteprima del cursore che si è mosso. */
@@ -530,7 +539,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val source = if (state.isVideo) "video" else "crop"
                     val imported = library.importBytes(converted.bytes, state.name.ifBlank { "sticker" }, source)
                     val replace = (state.source as? EditorSource.Image)?.replaceItemId
-                    if (replace != null && imported is StickerLibrary.ImportResult.Added) library.delete(setOf(replace))
+                    if (replace != null && !state.keepOriginal && imported is StickerLibrary.ImportResult.Added) library.delete(setOf(replace))
                     imported
                 }
             }

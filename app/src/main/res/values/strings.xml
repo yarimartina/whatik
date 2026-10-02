@@ -106,10 +106,11 @@
     <string name="share_nothing">Nessuna immagine da importare</string>
 
     <string name="title_editor">Ritaglia lo sticker</string>
-    <string name="editor_hint_video">Se il rilevamento automatico non basta: trascina il riquadro sullo sticker, stringi o allarga con due dita e scegli l\'intervallo da animare (massimo 10 secondi).</string>
-    <string name="editor_hint_image">Trascina il riquadro sullo sticker e stringi o allarga con due dita.</string>
-    <string name="editor_hint_animated">Trascina il riquadro sullo sticker e stringi o allarga con due dita. Con i cursori puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
-    <string name="editor_crop_size">Dimensione del riquadro</string>
+    <string name="editor_hint_video">Se il rilevamento automatico non basta: sposta l\'immagine sotto il riquadro con un dito, ingrandisci o riduci con due dita (o con il cursore) e scegli l\'intervallo da animare (massimo 10 secondi).</string>
+    <string name="editor_hint_image">Sposta l\'immagine sotto il riquadro con un dito; ingrandisci o riduci con due dita o con il cursore.</string>
+    <string name="editor_hint_animated">Sposta l\'immagine sotto il riquadro con un dito; ingrandisci o riduci con due dita o con il cursore. Con i cursori del tempo puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
+    <string name="editor_keep_original">Conserva anche l\'originale in libreria (utile se contiene altri sticker)</string>
+    <string name="editor_crop_size">Ingrandimento</string>
     <string name="editor_range">Intervallo da animare</string>
     <string name="editor_duration">%1$.1f s · %2$d fotogrammi</string>
     <string name="editor_name">Nome dello sticker</string>
@@ -146,7 +147,7 @@
     <string name="link_filter_all">Tutte (%d)</string>
 
     <string name="title_capture">Cattura automatica</string>
-    <string name="capture_intro">Whatik mostra una bolla sopra TikTok. Vai dove gli sticker sono visibili (un video, il pannello degli sticker, una chat) e tocca la bolla: Whatik cattura 5 secondi di schermo, trova gli sticker che si muovono e li aggiunge alla libreria. Tieni premuta la bolla per terminare la sessione.</string>
+    <string name="capture_intro">Whatik mostra una bolla sopra TikTok. Vai dove gli sticker sono visibili (un video, il pannello degli sticker, una chat), tocca la bolla e poi tocca lo sticker: Whatik capisce da solo se è animato o fermo e lo aggiunge alla libreria. Con "Tutti quelli in movimento" cattura in un colpo tutti gli sticker animati sullo schermo. Tieni premuta la bolla per terminare la sessione.</string>
     <string name="capture_step_overlay">Permesso di mostrare la bolla sopra le altre app</string>
     <string name="capture_step_notifications">Notifiche, per vedere lo stato della sessione</string>
     <string name="capture_granted">Concesso</string>
@@ -170,6 +171,11 @@
     </plurals>
     <string name="capture_status_none">Nessuno sticker animato trovato in questa cattura: tieni fermo lo schermo con lo sticker in vista</string>
     <string name="capture_status_stopped">Sessione terminata</string>
+    <string name="aim_hint">Tocca lo sticker da catturare</string>
+    <string name="aim_all">Tutti quelli in movimento</string>
+    <string name="aim_cancel">Annulla</string>
+    <string name="capture_kind_animated">animato</string>
+    <string name="capture_kind_static">fermo</string>
     <string name="capture_notification_progress">%1$s · totale sessione: %2$d</string>
     <string name="capture_result_channel_name">Sticker catturati</string>
     <plurals name="capture_result_title">
@@ -188,7 +194,7 @@
     </plurals>
     <string name="capture_too_few_frames">troppi pochi fotogrammi: lo schermo non cambiava</string>
     <string name="capture_failed">Cattura non riuscita: %s</string>
-    <string name="capture_tips">Suggerimenti: durante i 5 secondi non scorrere. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi non vengono rilevati: per quelli usa uno screenshot e "Ritaglia".</string>
+    <string name="capture_tips">Suggerimenti: durante la cattura non scorrere. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi si prendono toccandoli (punta e cattura); "Tutti quelli in movimento" trova solo gli animati.</string>
 
     <string name="default_pack_name">Sticker TikTok</string>
     <string name="default_publisher">Whatik</string>

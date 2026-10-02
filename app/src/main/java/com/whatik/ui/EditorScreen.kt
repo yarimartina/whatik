@@ -15,17 +15,16 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -40,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +54,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.whatik.R
 import com.whatik.image.CropSpec
 
@@ -74,6 +78,7 @@ fun EditorScreen(
     onApplyProposal: (Int) -> Unit,
     onCreateAll: () -> Unit,
     onDetectAgain: () -> Unit,
+    onKeepOriginalChange: (Boolean) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -88,77 +93,88 @@ fun EditorScreen(
         },
         snackbarHost = snackbarHost,
     ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-        ) {
-            if (state.isVideo) {
-                ProposalsSection(state, onApplyProposal, onCreateAll, onDetectAgain)
-            }
-            CropPreview(state, onCropChange)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(
-                    when {
-                        state.isVideo -> R.string.editor_hint_video
-                        state.hasTimeline -> R.string.editor_hint_animated
-                        else -> R.string.editor_hint_image
-                    },
-                ),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.editor_crop_size), style = MaterialTheme.typography.labelLarge)
-            Slider(
-                value = state.crop.size,
-                onValueChange = { onCropChange(state.crop.copy(size = it)) },
-                valueRange = CropSpec.MIN_SIZE..1f,
-                enabled = !state.converting,
-            )
-            if (state.hasTimeline) {
-                val durationSec = state.durationMs / 1000f
-                Text(stringResource(R.string.editor_range), style = MaterialTheme.typography.labelLarge)
-                RangeSlider(
-                    value = (state.startMs / 1000f)..(state.endMs / 1000f),
-                    onValueChange = { range -> onRangeChange((range.start * 1000).toLong(), (range.endInclusive * 1000).toLong()) },
-                    valueRange = 0f..durationSec.coerceAtLeast(0.2f),
-                    enabled = !state.converting,
-                )
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            // L'anteprima sta fuori dall'area scorrevole: i trascinamenti servono al ritaglio, non allo scroll.
+            CropPreview(state, onCropChange, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+            ) {
+                if (state.isVideo) {
+                    ProposalsSection(state, onApplyProposal, onCreateAll, onDetectAgain)
+                }
                 Text(
-                    stringResource(R.string.editor_duration, (state.endMs - state.startMs) / 1000f, state.frameCount),
+                    stringResource(
+                        when {
+                            state.isVideo -> R.string.editor_hint_video
+                            state.hasTimeline -> R.string.editor_hint_animated
+                            else -> R.string.editor_hint_image
+                        },
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Spacer(Modifier.height(12.dp))
-            }
-            OutlinedTextField(
-                value = state.name,
-                onValueChange = onNameChange,
-                label = { Text(stringResource(R.string.editor_name)) },
-                singleLine = true,
-                enabled = !state.converting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(16.dp))
-            if (state.converting) {
-                val progress = state.progress
-                if (progress != null && progress.second > 0) {
-                    LinearProgressIndicator(progress = { progress.first.toFloat() / progress.second }, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.editor_progress, progress.first, progress.second), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.editor_crop_size), style = MaterialTheme.typography.labelLarge)
+                Slider(
+                    value = 1f - state.crop.size,
+                    onValueChange = { onCropChange(state.crop.copy(size = 1f - it)) },
+                    valueRange = 0f..(1f - CropSpec.MIN_SIZE),
+                    enabled = !state.converting,
+                )
+                if (state.hasTimeline) {
+                    val durationSec = state.durationMs / 1000f
+                    Text(stringResource(R.string.editor_range), style = MaterialTheme.typography.labelLarge)
+                    RangeSlider(
+                        value = (state.startMs / 1000f)..(state.endMs / 1000f),
+                        onValueChange = { range -> onRangeChange((range.start * 1000).toLong(), (range.endInclusive * 1000).toLong()) },
+                        valueRange = 0f..durationSec.coerceAtLeast(0.2f),
+                        enabled = !state.converting,
+                    )
+                    Text(
+                        stringResource(R.string.editor_duration, (state.endMs - state.startMs) / 1000f, state.frameCount),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = onNameChange,
+                    label = { Text(stringResource(R.string.editor_name)) },
+                    singleLine = true,
+                    enabled = !state.converting,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if ((state.source as? EditorSource.Image)?.replaceItemId != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = state.keepOriginal,
+                            onCheckedChange = onKeepOriginalChange,
+                            enabled = !state.converting,
+                        )
+                        Text(stringResource(R.string.editor_keep_original), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                if (state.converting) {
+                    val progress = state.progress
+                    if (progress != null && progress.second > 0) {
+                        LinearProgressIndicator(progress = { progress.first.toFloat() / progress.second }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(6.dp))
+                        Text(stringResource(R.string.editor_progress, progress.first, progress.second), style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(6.dp))
+                        Text(stringResource(R.string.editor_converting), style = MaterialTheme.typography.bodySmall)
+                    }
                 } else {
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.editor_converting), style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), enabled = state.preview != null) {
+                        Text(stringResource(R.string.editor_create))
+                    }
                 }
-            } else {
-                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), enabled = state.preview != null) {
-                    Text(stringResource(R.string.editor_create))
-                }
+                Spacer(Modifier.height(32.dp))
             }
-            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -226,65 +242,80 @@ private fun ProposalsSection(
     }
 }
 
+/**
+ * Riquadro di ritaglio fisso al centro; sotto scorre l'immagine: un dito la sposta, due dita
+ * la ingrandiscono (come nei ritaglia-foto). Il riquadro vale sempre un quadrato dell'immagine.
+ */
 @Composable
-private fun CropPreview(state: EditorState, onCropChange: (CropSpec) -> Unit) {
-    val aspect = state.source.width.toFloat() / state.source.height.coerceAtLeast(1)
+private fun CropPreview(state: EditorState, onCropChange: (CropSpec) -> Unit, modifier: Modifier = Modifier) {
+    val imgW = state.source.width.coerceAtLeast(1)
+    val imgH = state.source.height.coerceAtLeast(1)
+    val crop = state.crop.effective(imgW, imgH)
+    val latestCrop = rememberUpdatedState(crop)
     val preview = state.preview
-    val crop = state.crop
+    val imageBitmap = remember(preview) { preview?.asImageBitmap() }
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .heightIn(max = 480.dp)
-            .aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 1f)
+            .height(340.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.Black)
-            .pointerInput(state.converting) {
+            .pointerInput(state.converting, imgW, imgH) {
                 if (state.converting) return@pointerInput
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val w = size.width.toFloat().coerceAtLeast(1f)
-                    val h = size.height.toFloat().coerceAtLeast(1f)
+                detectTransformGestures(panZoomLock = false) { _, pan, zoom, _ ->
+                    val current = latestCrop.value
+                    val frame = frameSide(size.width.toFloat(), size.height.toFloat())
+                    val cropSidePx = current.size * minOf(imgW, imgH)
+                    val k = frame / cropSidePx // pixel di vista per pixel di immagine
                     onCropChange(
                         CropSpec(
-                            cx = crop.cx + pan.x / w,
-                            cy = crop.cy + pan.y / h,
-                            size = crop.size / zoom,
-                        ),
+                            cx = current.cx - pan.x / (k * imgW),
+                            cy = current.cy - pan.y / (k * imgH),
+                            size = current.size / zoom,
+                        ).effective(imgW, imgH),
                     )
                 }
             }
             .drawWithContent {
+                val bw = size.width
+                val bh = size.height
+                val frame = frameSide(bw, bh)
+                val cropSidePx = crop.size * minOf(imgW, imgH)
+                val k = frame / cropSidePx
+                val originX = bw / 2f - crop.cx * imgW * k
+                val originY = bh / 2f - crop.cy * imgH * k
+                if (imageBitmap != null) {
+                    drawImage(
+                        image = imageBitmap,
+                        dstOffset = IntOffset(originX.roundToInt(), originY.roundToInt()),
+                        dstSize = IntSize((imgW * k).roundToInt().coerceAtLeast(1), (imgH * k).roundToInt().coerceAtLeast(1)),
+                    )
+                }
                 drawContent()
-                val w = size.width
-                val h = size.height
-                val n = crop.normalized()
-                val side = n.size * minOf(w, h)
-                val left = (n.cx * w - side / 2f).coerceIn(0f, w - side)
-                val top = (n.cy * h - side / 2f).coerceIn(0f, h - side)
+                val left = (bw - frame) / 2f
+                val top = (bh - frame) / 2f
                 val dim = Color.Black.copy(alpha = 0.55f)
-                drawRect(dim, Offset(0f, 0f), Size(w, top))
-                drawRect(dim, Offset(0f, top + side), Size(w, h - top - side))
-                drawRect(dim, Offset(0f, top), Size(left, side))
-                drawRect(dim, Offset(left + side, top), Size(w - left - side, side))
-                drawRect(Color.White, Offset(left, top), Size(side, side), style = Stroke(width = 3.dp.toPx()))
+                drawRect(dim, Offset(0f, 0f), Size(bw, top))
+                drawRect(dim, Offset(0f, top + frame), Size(bw, bh - top - frame))
+                drawRect(dim, Offset(0f, top), Size(left, frame))
+                drawRect(dim, Offset(left + frame, top), Size(bw - left - frame, frame))
+                drawRect(Color.White, Offset(left, top), Size(frame, frame), style = Stroke(width = 3.dp.toPx()))
                 val handle = 18.dp.toPx()
-                val stroke = Stroke(width = 5.dp.toPx())
-                for ((hx, hy) in listOf(left to top, left + side to top, left to top + side, left + side to top + side)) {
+                val strokeWidth = 5.dp.toPx()
+                for ((hx, hy) in listOf(left to top, left + frame to top, left to top + frame, left + frame to top + frame)) {
                     val dx = if (hx == left) handle else -handle
                     val dy = if (hy == top) handle else -handle
-                    drawLine(Color.White, Offset(hx, hy), Offset(hx + dx, hy), stroke.width)
-                    drawLine(Color.White, Offset(hx, hy), Offset(hx, hy + dy), stroke.width)
+                    drawLine(Color.White, Offset(hx, hy), Offset(hx + dx, hy), strokeWidth)
+                    drawLine(Color.White, Offset(hx, hy), Offset(hx, hy + dy), strokeWidth)
                 }
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (preview != null) {
-            Image(
-                bitmap = preview.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
+        if (preview == null) {
             CircularProgressIndicator(color = Color.White)
         }
     }
 }
+
+/** Lato del riquadro fisso: il 72% del lato minore dell'area di anteprima. */
+private fun frameSide(boxWidth: Float, boxHeight: Float): Float = 0.72f * minOf(boxWidth, boxHeight)

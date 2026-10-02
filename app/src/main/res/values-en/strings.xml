@@ -106,10 +106,11 @@
     <string name="share_nothing">No image to import</string>
 
     <string name="title_editor">Crop the sticker</string>
-    <string name="editor_hint_video">If automatic detection is not enough: drag the box onto the sticker, pinch to resize it and pick the time range to animate (10 seconds max).</string>
-    <string name="editor_hint_image">Drag the box onto the sticker and pinch to resize it.</string>
-    <string name="editor_hint_animated">Drag the box onto the sticker and pinch to resize it. Use the sliders to shorten the animation (the crop applies to every frame).</string>
-    <string name="editor_crop_size">Box size</string>
+    <string name="editor_hint_video">If automatic detection is not enough: move the image under the box with one finger, zoom with two fingers (or the slider) and pick the time range to animate (10 seconds max).</string>
+    <string name="editor_hint_image">Move the image under the box with one finger; zoom in or out with two fingers or the slider.</string>
+    <string name="editor_hint_animated">Move the image under the box with one finger; zoom in or out with two fingers or the slider. Use the time sliders to shorten the animation (the crop applies to every frame).</string>
+    <string name="editor_keep_original">Also keep the original in the library (useful if it contains other stickers)</string>
+    <string name="editor_crop_size">Zoom</string>
     <string name="editor_range">Range to animate</string>
     <string name="editor_duration">%1$.1f s · %2$d frames</string>
     <string name="editor_name">Sticker name</string>
@@ -146,7 +147,7 @@
     <string name="link_filter_all">All (%d)</string>
 
     <string name="title_capture">Automatic capture</string>
-    <string name="capture_intro">Whatik shows a bubble over TikTok. Go where stickers are visible (a video, the sticker panel, a chat) and tap the bubble: Whatik captures 5 seconds of screen, finds the moving stickers and adds them to the library. Long-press the bubble to end the session.</string>
+    <string name="capture_intro">Whatik shows a bubble over TikTok. Go where stickers are visible (a video, the sticker panel, a chat), tap the bubble and then tap the sticker: Whatik works out whether it is animated or still and adds it to the library. "All moving ones" grabs every animated sticker on screen at once. Long-press the bubble to end the session.</string>
     <string name="capture_step_overlay">Permission to show the bubble over other apps</string>
     <string name="capture_step_notifications">Notifications, to see the session status</string>
     <string name="capture_granted">Granted</string>
@@ -170,6 +171,11 @@
     </plurals>
     <string name="capture_status_none">No animated sticker found in this capture: keep the screen still with the sticker in view</string>
     <string name="capture_status_stopped">Session ended</string>
+    <string name="aim_hint">Tap the sticker to capture</string>
+    <string name="aim_all">All moving ones</string>
+    <string name="aim_cancel">Cancel</string>
+    <string name="capture_kind_animated">animated</string>
+    <string name="capture_kind_static">still</string>
     <string name="capture_notification_progress">%1$s · session total: %2$d</string>
     <string name="capture_result_channel_name">Captured stickers</string>
     <plurals name="capture_result_title">
@@ -188,7 +194,7 @@
     </plurals>
     <string name="capture_too_few_frames">too few frames: the screen was not changing</string>
     <string name="capture_failed">Capture failed: %s</string>
-    <string name="capture_tips">Tips: do not scroll during the 5 seconds. If the sticker sits on a playing video, pause it. Still stickers are not detected: use a screenshot and "Crop" for those.</string>
+    <string name="capture_tips">Tips: do not scroll while capturing. If the sticker sits on a playing video, pause it. Still stickers are grabbed by tapping them (point and capture); "All moving ones" finds animated ones only.</string>
 
     <string name="default_pack_name">TikTok stickers</string>
     <string name="default_publisher">Whatik</string>

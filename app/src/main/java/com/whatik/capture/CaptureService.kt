@@ -66,7 +66,16 @@ class CaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var bubble: BubbleOverlay? = null
+    private var aim: AimOverlay? = null
     private var tornDown = false
+    private var screenWidth = 1
+    private var screenHeight = 1
+    private var captureWidth = 1
+    private var captureHeight = 1
+
+    /** Punto toccato (in pixel del fotogramma catturato) per la modalità "punta e cattura"; null = tutto ciò che si muove. */
+    private var pointOfInterest: IntArray? = null
+    private var captureDurationMs = CAPTURE_ALL_MS
 
     @Volatile private var capturing = false
     private var captureStartedAt = 0L
@@ -192,6 +201,10 @@ class CaptureService : Service() {
         val scale = if (metrics.widthPixels > MAX_CAPTURE_WIDTH) MAX_CAPTURE_WIDTH.toFloat() / metrics.widthPixels else 1f
         val width = ((metrics.widthPixels * scale).toInt() / 2) * 2
         val height = ((metrics.heightPixels * scale).toInt() / 2) * 2
+        screenWidth = metrics.widthPixels.coerceAtLeast(1)
+        screenHeight = metrics.heightPixels.coerceAtLeast(1)
+        captureWidth = width
+        captureHeight = height
         val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         reader.setOnImageAvailableListener({ onFrame(it) }, handler)
         imageReader = reader
@@ -209,7 +222,7 @@ class CaptureService : Service() {
     private fun showBubble() {
         bubble = BubbleOverlay(
             context = this,
-            onTap = { beginCapture() },
+            onTap = { showAim() },
             onLongPress = {
                 teardown()
                 stopSelf()
@@ -217,23 +230,51 @@ class CaptureService : Service() {
         ).also { it.show() }
     }
 
+    /** Mirino: un tocco sullo sticker lo cattura (animato o fermo), "tutti" cattura ciò che si muove. */
+    private fun showAim() {
+        if (capturing || aim != null) return
+        aim = AimOverlay(
+            context = this,
+            onPoint = { x, y ->
+                dismissAim()
+                val px = (x * captureWidth / screenWidth).toInt().coerceIn(0, captureWidth - 1)
+                val py = (y * captureHeight / screenHeight).toInt().coerceIn(0, captureHeight - 1)
+                beginCapture(intArrayOf(px, py))
+            },
+            onCaptureAll = {
+                dismissAim()
+                beginCapture(null)
+            },
+            onCancel = { dismissAim() },
+        ).also { it.show() }
+        status.value = getString(R.string.aim_hint)
+    }
+
+    private fun dismissAim() {
+        runCatching { aim?.hide() }
+        aim = null
+    }
+
     // ------------------------------------------------------------ cattura
 
-    private fun beginCapture() {
+    private fun beginCapture(point: IntArray?) {
         if (capturing) return
         val dir = File(cacheDir, "capture/${System.currentTimeMillis()}").apply { mkdirs() }
         sessionDir = dir
         frameFiles.clear()
         frameTimes.clear()
+        pointOfInterest = point
+        captureDurationMs = if (point != null) CAPTURE_POINT_MS else CAPTURE_ALL_MS
         bubble?.setVisible(false) // la bolla non deve finire nei fotogrammi
         status.value = getString(R.string.capture_status_recording)
-        handler.post {
+        // breve attesa perché mirino e bolla spariscano dallo schermo prima del primo fotogramma
+        handler.postDelayed({
             captureStartedAt = SystemClock.elapsedRealtime()
             lastSampleAt = 0
             capturing = true
-        }
+        }, 350)
         // se lo schermo non cambia non arrivano fotogrammi: chiudiamo comunque la cattura
-        handler.postDelayed({ finishCapture() }, CAPTURE_MS + 700)
+        handler.postDelayed({ finishCapture() }, 350 + captureDurationMs + 700)
     }
 
     private fun onFrame(reader: ImageReader) {
@@ -256,7 +297,7 @@ class CaptureService : Service() {
             cropped.recycle()
             frameFiles.add(file)
             frameTimes.add(now - captureStartedAt)
-            if (now - captureStartedAt >= CAPTURE_MS) finishCapture()
+            if (now - captureStartedAt >= captureDurationMs) finishCapture()
         } catch (e: Exception) {
             // un fotogramma perso non interrompe la cattura
         } finally {
@@ -269,37 +310,69 @@ class CaptureService : Service() {
         capturing = false
         val files = ArrayList(frameFiles)
         val times = ArrayList(frameTimes)
+        val point = pointOfInterest
         mainHandler.post {
             bubble?.setVisible(true)
             bubble?.setState(BubbleOverlay.State.PROCESSING, "…")
         }
         status.value = getString(R.string.capture_status_processing)
-        scope.launch { process(files, times) }
+        scope.launch { process(files, times, point) }
     }
 
-    private suspend fun process(files: List<File>, times: List<Long>) {
+    private suspend fun process(files: List<File>, times: List<Long>, point: IntArray?) {
         val library = (application as WhatikApp).library
         val result = runCatching {
-            if (files.size < MIN_FRAMES) throw StickerConverter.ConversionException(getString(R.string.capture_too_few_frames))
+            if (files.isEmpty()) throw StickerConverter.ConversionException(getString(R.string.capture_too_few_frames))
             val captured = CapturedFrames(files, times)
-            val proposals = captured.detect(StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f))
+            val stamp = SimpleDateFormat("HH.mm.ss", Locale.getDefault()).format(Date())
             val items = ArrayList<StickerItem>()
             var preview: Bitmap? = null
-            val stamp = SimpleDateFormat("HH.mm.ss", Locale.getDefault()).format(Date())
-            for ((i, proposal) in proposals.withIndex()) {
-                val converted = StickerConverter.convert(captured.producer(proposal.crop, proposal.startMs, proposal.endMs), forceStatic = false)
-                val name = if (proposals.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp"
-                val item = when (val r = library.importBytes(converted.bytes, name, "capture")) {
+            var found = 0
+            var animated = false
+
+            suspend fun store(bytes: ByteArray, name: String): StickerItem? {
+                val item = when (val r = library.importBytes(bytes, name, "capture")) {
                     is StickerLibrary.ImportResult.Added -> r.item
                     is StickerLibrary.ImportResult.Duplicate -> r.item
                     is StickerLibrary.ImportResult.Failed -> null
                 }
                 if (item != null) {
                     items.add(item)
-                    if (preview == null) preview = firstFrame(converted.bytes)
+                    if (preview == null) preview = firstFrame(bytes)
                 }
+                return item
             }
-            CaptureOutcome(items, proposals.size, preview)
+
+            val detectorParams = StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f)
+            val proposals = if (files.size >= MIN_FRAMES) captured.detect(detectorParams) else emptyList()
+
+            if (point == null) {
+                // tutto ciò che si muove
+                for ((i, proposal) in proposals.withIndex()) {
+                    val converted = StickerConverter.convert(captured.producer(proposal.crop, proposal.startMs, proposal.endMs), forceStatic = false)
+                    store(converted.bytes, if (proposals.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp")
+                }
+                found = proposals.size
+                animated = proposals.isNotEmpty()
+            } else {
+                // punta e cattura: una regione in movimento che contiene il punto, altrimenti uno sticker fermo
+                val hit = proposals.firstOrNull { p ->
+                    val (l, t, side) = p.crop.toPixels(captured.width, captured.height)
+                    val slack = side / 4
+                    point[0] in (l - slack)..(l + side + slack) && point[1] in (t - slack)..(t + side + slack)
+                }
+                if (hit != null) {
+                    val converted = StickerConverter.convert(captured.producer(hit.crop, hit.startMs, hit.endMs), forceStatic = false)
+                    store(converted.bytes, "TikTok $stamp")
+                    animated = true
+                } else {
+                    val crop = captured.staticCropAround(point[0], point[1])
+                    val converted = StickerConverter.convert(captured.producer(crop, times.first(), times.first()), forceStatic = true)
+                    store(converted.bytes, "TikTok $stamp")
+                }
+                found = 1
+            }
+            CaptureOutcome(items, found, preview, animated)
         }
         files.forEach { it.delete() }
         withContext(Dispatchers.Main) {
@@ -308,7 +381,8 @@ class CaptureService : Service() {
                 sessionCount.value += created
                 createdIds.value = createdIds.value + outcome.items.map { it.id }
                 val total = sessionCount.value
-                val text = if (outcome.found > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created)
+                val kind = getString(if (outcome.animated) R.string.capture_kind_animated else R.string.capture_kind_static)
+                val text = if (outcome.found > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created) + " ($kind)"
                 else getString(R.string.capture_status_none)
                 status.value = text
                 updateNotification(getString(R.string.capture_notification_progress, text, total))
@@ -329,7 +403,7 @@ class CaptureService : Service() {
         }
     }
 
-    private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?)
+    private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?, val animated: Boolean)
 
     /** Primo fotogramma dello sticker convertito, per l'anteprima nella notifica. */
     private fun firstFrame(webp: ByteArray): Bitmap? = runCatching {
@@ -382,6 +456,7 @@ class CaptureService : Service() {
         projection = null
         runCatching { bubble?.hide() }
         bubble = null
+        dismissAim()
         File(cacheDir, "capture").deleteRecursively()
         running.value = false
         status.value = getString(R.string.capture_status_stopped)
@@ -398,7 +473,8 @@ class CaptureService : Service() {
         private const val NOTIFICATION_ID = 41
         private const val RESULT_NOTIFICATION_ID = 42
         private const val MAX_CAPTURE_WIDTH = 1440
-        const val CAPTURE_MS = 5000L
+        const val CAPTURE_ALL_MS = 5000L
+        const val CAPTURE_POINT_MS = 3000L
         const val CAPTURE_FPS = 10
         private const val MIN_FRAMES = 6
 

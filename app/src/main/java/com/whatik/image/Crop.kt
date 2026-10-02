@@ -24,6 +24,12 @@ data class CropSpec(val cx: Float, val cy: Float, val size: Float) {
         return intArrayOf(left, top, side)
     }
 
+    /** Lo stesso riquadro con il centro riportato dentro i bordi, come lo applicherà [toPixels]. */
+    fun effective(width: Int, height: Int): CropSpec {
+        val (left, top, side) = toPixels(width, height)
+        return CropSpec((left + side / 2f) / width, (top + side / 2f) / height, side.toFloat() / minOf(width, height))
+    }
+
     /** Ritaglia una copia quadrata; il bitmap sorgente non viene riciclato. */
     fun apply(source: Bitmap): Bitmap {
         val (left, top, side) = toPixels(source.width, source.height)
