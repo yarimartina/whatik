@@ -93,4 +93,27 @@ class StickerDetectorTest {
         assertEquals(2, merged.size)
         assertTrue(merged.any { it.contentEquals(intArrayOf(0, 0, 20, 12)) })
     }
+
+    @Test
+    fun splitsARowOfTouchingStickers() {
+        // due regioni separate da 2 colonne: la dilatazione le unisce, il profilo le separa
+        val (frames, times) = sequence(16) { f, i ->
+            fill(f, 10, 60, 20, if (i % 2 == 0) 230 else 20)
+            fill(f, 32, 60, 20, if (i % 2 == 0) 230 else 20)
+        }
+        val found = StickerDetector.detect(frames, w, h, times)
+        assertEquals(2, found.size)
+        assertTrue(found[0].box[0] + found[0].box[2] <= 33)
+        assertTrue(found[1].box[0] >= 29)
+    }
+
+    @Test
+    fun ringActivityMeasuresMotionAroundTheBox() {
+        // maschera: il riquadro 10..30 x 10..30 e' fermo, tutto il resto si muove
+        val mask = BooleanArray(w * h) { p -> val x = p % w; val y = p / w; !(x in 10 until 30 && y in 10 until 30) }
+        assertTrue(StickerDetector.ringActivity(mask, w, h, 10, 10, 30, 30) > 0.9f)
+        // nessun movimento attorno
+        val still = BooleanArray(w * h) { p -> val x = p % w; val y = p / w; x in 10 until 30 && y in 10 until 30 }
+        assertEquals(0f, StickerDetector.ringActivity(still, w, h, 10, 10, 30, 30), 1e-6f)
+    }
 }

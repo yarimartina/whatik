@@ -34,7 +34,9 @@ import com.whatik.WhatikApp
 import com.whatik.data.StickerItem
 import com.whatik.data.StickerLibrary
 import com.whatik.image.StickerConverter
+import com.whatik.image.CropSpec
 import com.whatik.image.StickerDetector
+import com.whatik.image.StickerRefiner
 import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -344,16 +346,25 @@ class CaptureService : Service() {
             }
 
             val detectorParams = StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f)
-            val proposals = if (files.size >= MIN_FRAMES) captured.detect(detectorParams) else emptyList()
+            val (grays, dims) = captured.grayFrames()
+            val proposals = if (files.size >= MIN_FRAMES) StickerDetector.detect(grays, dims.first, dims.second, times, detectorParams) else emptyList()
+            val (rgb, fw, fh) = captured.colorFrame()
+
+            // Il movimento da solo taglia gli sticker (si muove solo una parte): si allarga ai bordi
+            // dello sticker fermo e si scartano le regioni evidentemente sbagliate.
+            fun refined(p: StickerDetector.Proposal, seed: IntArray?): CropSpec? =
+                StickerRefiner.refine(p.box, dims.first, dims.second, rgb, fw, fh, seed)
 
             if (point == null) {
                 // tutto ciò che si muove
-                for ((i, proposal) in proposals.withIndex()) {
-                    val converted = StickerConverter.convert(captured.producer(proposal.crop, proposal.startMs, proposal.endMs), forceStatic = false)
-                    store(converted.bytes, if (proposals.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp")
+                val crops = proposals.mapNotNull { p -> refined(p, null)?.let { crop -> Triple(crop, p.startMs, p.endMs) } }
+                for ((i, entry) in crops.withIndex()) {
+                    val (crop, startMs, endMs) = entry
+                    val converted = StickerConverter.convert(captured.producer(crop, startMs, endMs), forceStatic = false)
+                    store(converted.bytes, if (crops.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp")
                 }
-                found = proposals.size
-                animated = proposals.isNotEmpty()
+                found = crops.size
+                animated = crops.isNotEmpty()
             } else {
                 // punta e cattura: una regione in movimento che contiene il punto, altrimenti uno sticker fermo
                 val hit = proposals.firstOrNull { p ->
@@ -361,8 +372,10 @@ class CaptureService : Service() {
                     val slack = side / 4
                     point[0] in (l - slack)..(l + side + slack) && point[1] in (t - slack)..(t + side + slack)
                 }
-                if (hit != null) {
-                    val converted = StickerConverter.convert(captured.producer(hit.crop, hit.startMs, hit.endMs), forceStatic = false)
+                val seed = intArrayOf(point[0] * fw / captured.width, point[1] * fh / captured.height)
+                val hitCrop = hit?.let { refined(it, seed) ?: it.crop }
+                if (hit != null && hitCrop != null) {
+                    val converted = StickerConverter.convert(captured.producer(hitCrop, hit.startMs, hit.endMs), forceStatic = false)
                     store(converted.bytes, "TikTok $stamp")
                     animated = true
                 } else {

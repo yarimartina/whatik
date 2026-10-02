@@ -57,14 +57,21 @@ object VideoAnalyzer {
             val found = StickerDetector.detect(frames, aw, ah, keptTimes)
             if (found.isEmpty()) return emptyList()
 
+            // fotogramma a colori all'inizio della finestra: serve a estendere il riquadro ai bordi dello sticker
+            val colorFrame = frameAt(retriever, found.first().startMs, 720, 720)
+            val rgb = colorFrame?.let { bmp -> IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) } }
+
             return found.mapNotNull { proposal ->
+                val crop = if (rgb != null && colorFrame != null) {
+                    StickerRefiner.refine(proposal.box, aw, ah, rgb, colorFrame.width, colorFrame.height) ?: return@mapNotNull null
+                } else proposal.crop
                 val frame = frameAt(retriever, proposal.startMs, 720, 720) ?: return@mapNotNull null
-                val cropped = proposal.crop.apply(frame)
+                val cropped = crop.apply(frame)
                 if (cropped !== frame) frame.recycle()
                 val preview = if (cropped.width > PREVIEW_SIDE) Bitmap.createScaledBitmap(cropped, PREVIEW_SIDE, PREVIEW_SIDE, true) else cropped
                 if (preview !== cropped) cropped.recycle()
-                StickerProposal(proposal.crop, proposal.startMs, proposal.endMs, preview, proposal.score)
-            }
+                StickerProposal(crop, proposal.startMs, proposal.endMs, preview, proposal.score)
+            }.also { colorFrame?.recycle() }
         } finally {
             retriever.release()
         }

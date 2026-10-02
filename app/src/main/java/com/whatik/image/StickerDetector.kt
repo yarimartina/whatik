@@ -52,6 +52,12 @@ object StickerDetector {
         /** Fasce superiore e inferiore da ignorare (barra di stato, barra di navigazione). */
         val ignoreTopFraction: Float = 0f,
         val ignoreBottomFraction: Float = 0f,
+        /** Oltre questo rapporto fra i lati si prova a separare una fila di sticker attaccati. */
+        val splitAspect: Float = 1.4f,
+        /** Colonne/righe con attività sotto questa frazione del massimo sono "vuoti" fra sticker. */
+        val gapFraction: Float = 0.12f,
+        /** Se l'anello attorno alla regione si muove più di così, è un pezzo di video, non uno sticker. */
+        val maxRingActivity: Float = 0.3f,
     )
 
     /**
@@ -107,7 +113,7 @@ object StickerDetector {
         // 4) dilatazione leggera e componenti connesse
         val dilated = dilate(alive, width, height, radius = 1)
         val boxes = connectedBoxes(dilated, width, height, minArea = (pixels * params.minAreaFraction).roundToInt().coerceAtLeast(4))
-        val merged = mergeBoxes(boxes, gap = 2)
+        val merged = mergeBoxes(boxes, gap = 2).flatMap { splitByGaps(alive, width, height, it, params) }
 
         // 5) proposte
         val proposals = ArrayList<Proposal>()
@@ -117,6 +123,7 @@ object StickerDetector {
             val h = b - t
             if (w < 3 || h < 3) continue
             if (w.toFloat() * h / pixels > params.maxBoxFraction) continue
+            if (ringActivity(alive, width, height, l, t, r, b) > params.maxRingActivity) continue
             val activity = regionActivity(freq, width, l, t, r, b)
             val periodFrames = estimatePeriod(frames, width, l, t, r, b, firstFrame, lastFrame)
             val startMs = timesMs[firstFrame]
@@ -220,6 +227,69 @@ object StickerDetector {
             }
         }
         return list
+    }
+
+    /**
+     * Separa una regione allungata (fila o colonna di sticker attaccati) nei punti in cui il
+     * profilo di attività per colonna/riga scende quasi a zero.
+     */
+    internal fun splitByGaps(alive: BooleanArray, width: Int, height: Int, box: IntArray, params: Params): List<IntArray> {
+        val (l, t, r, b) = box
+        val w = r - l
+        val h = b - t
+        if (w <= 0 || h <= 0) return listOf(box)
+        val horizontal = w.toFloat() / h >= params.splitAspect
+        val vertical = h.toFloat() / w >= params.splitAspect
+        if (!horizontal && !vertical) return listOf(box)
+        val length = if (horizontal) w else h
+        val profile = IntArray(length)
+        for (y in t until b) for (x in l until r) {
+            if (alive[y * width + x]) profile[if (horizontal) x - l else y - t]++
+        }
+        val max = profile.maxOrNull() ?: 0
+        if (max == 0) return listOf(box)
+        val threshold = max * params.gapFraction
+        val pieces = ArrayList<IntArray>()
+        var start = -1
+        for (i in 0..length) {
+            val active = i < length && profile[i] > threshold
+            if (active && start < 0) start = i
+            if (!active && start >= 0) {
+                pieces.add(if (horizontal) intArrayOf(l + start, t, l + i, b) else intArrayOf(l, t + start, r, t + i))
+                start = -1
+            }
+        }
+        if (pieces.size <= 1) return listOf(box)
+        // rifinisce ogni pezzo sull'altro asse (una fila di sticker non li ha tutti alla stessa altezza)
+        return pieces.map { piece ->
+            val (pl, pt, pr, pb) = piece
+            var nl = pr; var nt = pb; var nr = pl; var nb = pt
+            for (y in pt until pb) for (x in pl until pr) {
+                if (!alive[y * width + x]) continue
+                if (x < nl) nl = x
+                if (x + 1 > nr) nr = x + 1
+                if (y < nt) nt = y
+                if (y + 1 > nb) nb = y + 1
+            }
+            if (nr > nl && nb > nt) intArrayOf(nl, nt, nr, nb) else piece
+        }
+    }
+
+    /** Frazione di pixel "vivi" nell'anello attorno alla regione (spessore 10% del lato maggiore, min 2 px). */
+    internal fun ringActivity(alive: BooleanArray, width: Int, height: Int, l: Int, t: Int, r: Int, b: Int): Float {
+        val ring = max(2, (max(r - l, b - t) * 0.1f).roundToInt())
+        val ol = (l - ring).coerceAtLeast(0)
+        val ot = (t - ring).coerceAtLeast(0)
+        val or_ = (r + ring).coerceAtMost(width)
+        val ob = (b + ring).coerceAtMost(height)
+        var count = 0
+        var total = 0
+        for (y in ot until ob) for (x in ol until or_) {
+            if (x in l until r && y in t until b) continue
+            total++
+            if (alive[y * width + x]) count++
+        }
+        return if (total == 0) 0f else count.toFloat() / total
     }
 
     private fun regionActivity(freq: FloatArray, width: Int, l: Int, t: Int, r: Int, b: Int): Float {

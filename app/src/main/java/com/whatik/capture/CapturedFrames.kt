@@ -51,11 +51,8 @@ class CapturedFrames(val files: List<File>, val timesMs: List<Long>) {
 
     fun producer(crop: CropSpec, startMs: Long, endMs: Long): FrameProducer = CapturedFrameProducer(this, crop, startMs, endMs)
 
-    /**
-     * Riquadro di uno sticker fermo attorno al punto (in pixel del fotogramma), stimato sul primo
-     * fotogramma ridotto a ~[analysisWidth] px di larghezza.
-     */
-    fun staticCropAround(px: Int, py: Int, analysisWidth: Int = 480): CropSpec {
+    /** Primo fotogramma a colori ridotto a ~[analysisWidth] px di larghezza: (pixel, larghezza, altezza). */
+    fun colorFrame(analysisWidth: Int = 480): Triple<IntArray, Int, Int> {
         var sample = 1
         while (width / (sample * 2) >= analysisWidth) sample *= 2
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
@@ -63,11 +60,21 @@ class CapturedFrames(val files: List<File>, val timesMs: List<Long>) {
             ?: throw StickerConverter.ConversionException("Fotogramma catturato non leggibile")
         val pixels = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        val sx = px * bitmap.width / width
-        val sy = py * bitmap.height / height
-        val result = StaticStickerFinder.find(pixels, bitmap.width, bitmap.height, sx, sy)
+        val result = Triple(pixels, bitmap.width, bitmap.height)
         bitmap.recycle()
-        return StaticStickerFinder.toCrop(result.box, bitmap.width, bitmap.height)
+        return result
+    }
+
+    /**
+     * Riquadro di uno sticker fermo attorno al punto (in pixel del fotogramma), stimato sul primo
+     * fotogramma ridotto.
+     */
+    fun staticCropAround(px: Int, py: Int): CropSpec {
+        val (pixels, fw, fh) = colorFrame()
+        val sx = px * fw / width
+        val sy = py * fh / height
+        val result = StaticStickerFinder.find(pixels, fw, fh, sx, sy)
+        return StaticStickerFinder.toCrop(result.box, fw, fh)
     }
 
     fun delete() {
