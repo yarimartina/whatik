@@ -32,6 +32,8 @@ class CaptureLockOverlay(
     private val durationMs: Long,
     /** Tessere della griglia (pixel dello schermo), evidenziate una alla volta durante l'elaborazione. */
     private val tiles: List<Rect> = emptyList(),
+    /** Sticker toccato con "Punta" (pixel dello schermo): resta in chiaro con la cornice attorno ai suoi bordi. */
+    private val focus: Rect? = null,
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val view = LockView()
@@ -148,13 +150,20 @@ class CaptureLockOverlay(
                 return
             }
             if (z != null) {
-                // scurisce tutto fuori dalla zona (la zona resta pulita: e' quella che viene ritagliata)
-                canvas.drawRect(0f, 0f, w, z.top.toFloat(), dim)
-                canvas.drawRect(0f, z.bottom.toFloat(), w, h, dim)
-                canvas.drawRect(0f, z.top.toFloat(), z.left.toFloat(), z.bottom.toFloat(), dim)
-                canvas.drawRect(z.right.toFloat(), z.top.toFloat(), w, z.bottom.toFloat(), dim)
-                val inset = dp(4f) // cornice fuori dalla zona, cosi' non entra nei fotogrammi
-                canvas.drawRoundRect(RectF(z.left - inset, z.top - inset, z.right + inset, z.bottom + inset), dp(10f), dp(10f), frame)
+                // resta in chiaro lo sticker toccato, se riconosciuto, altrimenti tutta la zona.
+                // Cornice e ombra stanno appena fuori dallo sticker: non entrano nel suo ritaglio.
+                val gap = if (focus != null) dp(5f) else 0f
+                val hole = focus ?: z
+                val hl = hole.left - gap
+                val ht = hole.top - gap
+                val hr = hole.right + gap
+                val hb = hole.bottom + gap
+                canvas.drawRect(0f, 0f, w, ht, dim)
+                canvas.drawRect(0f, hb, w, h, dim)
+                canvas.drawRect(0f, ht, hl, hb, dim)
+                canvas.drawRect(hr, ht, w, hb, dim)
+                val inset = dp(4f)
+                canvas.drawRoundRect(RectF(hl - inset, ht - inset, hr + inset, hb + inset), dp(10f), dp(10f), frame)
                 // etichetta e barra sopra o sotto la zona, dove c'e' spazio
                 val above = z.top > h * 0.25f
                 val textY = if (above) z.top - dp(36f) else z.bottom + dp(44f)

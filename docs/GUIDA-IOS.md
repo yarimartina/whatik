@@ -53,7 +53,8 @@ usa il registratore di iOS e Whatik analizza il video dopo.
 6. In Whatik, scheda **Cattura → Scegli la registrazione**.
 
 Whatik trova le tessere del pannello, capisce quali sono animate e quanto dura il loro loop,
-rende trasparente lo sfondo bianco e ti mostra l'elenco: togli la spunta a quelli che non vuoi
+toglie i bordi bianchi del pannello (uno sticker ritagliato diventa trasparente attorno, un meme
+tiene il suo sfondo) e ti mostra l'elenco: togli la spunta a quelli che non vuoi
 e tocca **Crea**. Il video che continua a girare sopra il pannello non dà fastidio.
 
 Se l'ultima fila è nascosta dalla barra in basso, quegli sticker vengono saltati con un
@@ -62,7 +63,7 @@ avviso: scorri il pannello e fai un'altra registrazione. Gli sticker già presi 
 ### Solo sticker fermi
 
 Uno screenshot del pannello basta: **Cattura → Scegli lo screenshot**. Ogni tessera diventa uno
-sticker con lo sfondo trasparente.
+sticker senza i bordi del pannello.
 
 ### Altri modi
 
