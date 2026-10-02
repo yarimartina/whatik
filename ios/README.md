@@ -43,7 +43,7 @@ per provarla dal browser.
 2. Avvia la registrazione dello schermo dal Centro di Controllo.
 3. Tieni fermo il pannello 6–8 secondi, poi ferma la registrazione.
 4. In Whatik, scheda *Cattura* → *Scegli la registrazione*. Whatik trova le tessere del pannello,
-   capisce quali sono animate e quanto dura il loop, toglie lo sfondo bianco e ti fa scegliere
+   capisce quali sono animate e quanto dura il loop, toglie i bordi bianchi del pannello (un meme tiene il suo sfondo) e ti fa scegliere
    quali sticker creare.
 5. In *Libreria* seleziona gli sticker e tocca *Copia su WhatsApp*; in *Pack* tocca *Aggiungi a WhatsApp*.
 
@@ -69,7 +69,7 @@ deduplica degli sticker.
 
 | Percorso | Contenuto |
 | --- | --- |
-| `WhatikCore/Sources/WhatikCore` | Logica pura in Swift, portata dalla versione Android: rilevatore di movimento e loop, sticker fermi, rifinitura, griglia delle tessere, rimozione dello sfondo, ritaglio, pianificazione dei pack, libreria, archivio dei pack, dati per WhatsApp |
+| `WhatikCore/Sources/WhatikCore` | Logica pura in Swift, portata dalla versione Android: rilevatore di movimento e loop, sticker fermi, rifinitura, griglia delle tessere, pulizia dei bordi del pannello, ritaglio, pianificazione dei pack, libreria, archivio dei pack, dati per WhatsApp |
 | `WhatikCore/Sources/WhatikMedia` | Codifica e decodifica WebP con libwebp, conversione degli sticker, operazioni sui pack |
 | `WhatikCore/Tests` | 74 test XCTest (gli stessi della versione Android più quelli su WebP e pack), girano anche su Linux |
 | `WhatikTests` | Test nel simulatore delle parti solo iOS: CoreGraphics, GIF con ImageIO, video con AVFoundation, analisi completa di uno screenshot e di una registrazione sintetica del pannello con un video che scorre sopra |

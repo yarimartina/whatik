@@ -193,7 +193,7 @@ enum Analyzer {
                 case .image(let raster, _):
                     base = StillSource(raster.cropped(candidate.crop))
                 }
-                let cleaned = BackgroundRemovingSource(base, backgroundHint: result.backgroundHint)
+                let cleaned = StickerCleaningSource(base, backgroundHint: result.backgroundHint)
                 let converted = try StickerConverter.convert(cleaned, forceStatic: !candidate.animated)
                 let name = chosen.count > 1 ? "TikTok \(stamp) \(i + 1)" : "TikTok \(stamp)"
                 switch library.importData(converted.bytes, name: name, source: "recording", probe: MediaDecoder.probe) {
