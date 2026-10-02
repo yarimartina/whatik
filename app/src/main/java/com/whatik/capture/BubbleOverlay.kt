@@ -71,6 +71,9 @@ class BubbleOverlay(
         attached = true
     }
 
+    /** Centro della bolla in pixel dello schermo (per il menu circolare). */
+    fun center(): IntArray = intArrayOf(params.x + sizePx / 2, params.y + sizePx / 2)
+
     fun hide() {
         if (!attached) return
         windowManager.removeView(root)

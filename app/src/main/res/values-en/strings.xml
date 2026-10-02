@@ -191,7 +191,7 @@
     <string name="link_filter_all">All (%d)</string>
 
     <string name="title_capture">Automatic capture</string>
-    <string name="capture_intro">Whatik shows a bubble over TikTok. Go where stickers are visible (a video, the sticker panel, a chat), tap the bubble and then tap the sticker: Whatik works out whether it is animated or still and adds it to the library. "All moving ones" grabs every animated sticker on screen at once. Long-press the bubble to end the session.</string>
+    <string name="capture_intro">Whatik shows a bubble over TikTok. Go where stickers are visible (a video, the sticker panel, a chat) and tap the bubble: a radial menu opens. "Point" lets you tap the sticker to capture: Whatik frames the zone, locks the screen for 8 seconds (so you cannot scroll by mistake), records at 20 frames per second, measures the loop length and works out whether the sticker is animated or still. "All" grabs every animated sticker on screen at once. "End" or a long-press on the bubble closes the session.</string>
     <string name="capture_step_overlay">Permission to show the bubble over other apps</string>
     <string name="capture_step_notifications">Notifications, to see the session status</string>
     <string name="capture_granted">Granted</string>
@@ -216,8 +216,11 @@
     <string name="capture_status_none">No animated sticker found in this capture: keep the screen still with the sticker in view</string>
     <string name="capture_status_stopped">Session ended</string>
     <string name="aim_hint">Tap the sticker to capture</string>
-    <string name="aim_all">All moving ones</string>
     <string name="aim_cancel">Cancel</string>
+    <string name="radial_point">Point</string>
+    <string name="radial_all">All</string>
+    <string name="radial_end">End</string>
+    <string name="lock_label">Whatik is recording: screen locked</string>
     <string name="capture_kind_animated">animated</string>
     <string name="capture_kind_static">still</string>
     <string name="capture_notification_progress">%1$s · session total: %2$d</string>
@@ -238,7 +241,7 @@
     </plurals>
     <string name="capture_too_few_frames">too few frames: the screen was not changing</string>
     <string name="capture_failed">Capture failed: %s</string>
-    <string name="capture_tips">Tips: do not scroll while capturing. If the sticker sits on a playing video, pause it. Still stickers are grabbed by tapping them (point and capture); "All moving ones" finds animated ones only.</string>
+    <string name="capture_tips">Tips: while capturing, Whatik locks the screen and shows the framed zone with a countdown. If the sticker sits on a playing video, pause it. Still stickers are grabbed with "Point"; "All" finds animated ones only.</string>
 
     <string name="default_pack_name">TikTok stickers</string>
     <string name="default_publisher">Whatik</string>

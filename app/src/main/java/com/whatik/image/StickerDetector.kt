@@ -58,6 +58,17 @@ object StickerDetector {
         val gapFraction: Float = 0.12f,
         /** Se l'anello attorno alla regione si muove più di così, è un pezzo di video, non uno sticker. */
         val maxRingActivity: Float = 0.3f,
+        /**
+         * Distanza temporale fra i fotogrammi confrontati per il movimento. A 20 fps due
+         * fotogrammi consecutivi sono quasi uguali: si confrontano fotogrammi a ~250 ms.
+         */
+        val compareLagMs: Long = 250,
+        /** Periodo minimo del loop considerato. */
+        val minPeriodMs: Long = 400,
+        /** Similarità minima fra fotogrammi a distanza di un periodo perché il loop sia riconosciuto. */
+        val minLoopSimilarity: Float = 0.9f,
+        /** Pixel sotto questa luminosità sono "neri": un fotogramma quasi tutto nero e' il riavvio del loop. */
+        val darkFrameGray: Int = 40,
     )
 
     /**
@@ -66,17 +77,23 @@ object StickerDetector {
      */
     fun detect(frames: List<IntArray>, width: Int, height: Int, timesMs: List<Long>, params: Params = Params()): List<Proposal> {
         require(frames.size == timesMs.size)
-        val n = frames.size
-        if (n < params.minStableDiffs + 1) return emptyList()
         val pixels = width * height
 
-        // 1) maschere di cambiamento fra fotogrammi consecutivi e frazione globale
+        // 0) per il movimento si confrontano fotogrammi a ~compareLagMs di distanza: a frequenze
+        //    alte quelli consecutivi sono quasi identici e il movimento sfuggirebbe
+        val sample = ArrayList<Int>()
+        for (i in frames.indices) {
+            if (sample.isEmpty() || timesMs[i] - timesMs[sample.last()] >= params.compareLagMs) sample.add(i)
+        }
+        val n = sample.size
+        if (n < params.minStableDiffs + 1) return emptyList()
+
+        // 1) maschere di cambiamento fra fotogrammi campionati e frazione globale
         val changed = Array(n - 1) { BooleanArray(pixels) }
-        val magnitude = Array(n - 1) { IntArray(0) }
         val globalChange = FloatArray(n - 1)
         for (i in 1 until n) {
-            val a = frames[i - 1]
-            val b = frames[i]
+            val a = frames[sample[i - 1]]
+            val b = frames[sample[i]]
             var count = 0
             val mask = changed[i - 1]
             for (p in 0 until pixels) {
@@ -85,12 +102,12 @@ object StickerDetector {
             globalChange[i - 1] = count.toFloat() / pixels
         }
 
-        // 2) finestra stabile più lunga (niente scorrimenti)
+        // 2) finestra stabile più lunga (niente scorrimenti), riportata agli indici dei fotogrammi reali
         val window = longestStableWindow(globalChange, params) ?: return emptyList()
         val (firstDiff, lastDiff) = window // indici in changed[], inclusivi
         val numDiffs = lastDiff - firstDiff + 1
-        val firstFrame = firstDiff
-        val lastFrame = lastDiff + 1
+        val firstFrame = sample[firstDiff]
+        val lastFrame = sample[lastDiff + 1]
 
         // 3) frequenza di cambiamento per pixel dentro la finestra
         val freq = FloatArray(pixels)
@@ -125,11 +142,19 @@ object StickerDetector {
             if (w.toFloat() * h / pixels > params.maxBoxFraction) continue
             if (ringActivity(alive, width, height, l, t, r, b) > params.maxRingActivity) continue
             val activity = regionActivity(freq, width, l, t, r, b)
-            val periodFrames = estimatePeriod(frames, width, l, t, r, b, firstFrame, lastFrame)
-            val startMs = timesMs[firstFrame]
+            val periodFrames = estimatePeriod(frames, timesMs, width, l, t, r, b, firstFrame, lastFrame, params)
+            var startFrame = firstFrame
+            if (periodFrames > 0) {
+                // il loop riparte dopo l'eventuale fotogramma nero: si comincia da lì
+                val lastDark = (firstFrame until min(firstFrame + periodFrames, lastFrame)).lastOrNull { i ->
+                    darkFraction(frames[i], width, l, t, r, b, params.darkFrameGray) >= 0.8f
+                }
+                if (lastDark != null && lastDark + 1 + periodFrames <= lastFrame + 1) startFrame = lastDark + 1
+            }
+            val startMs = timesMs[startFrame]
             val windowEndMs = timesMs[lastFrame]
             var endMs = when {
-                periodFrames > 0 && firstFrame + periodFrames <= lastFrame -> timesMs[firstFrame + periodFrames]
+                periodFrames > 0 && startFrame + periodFrames <= lastFrame -> timesMs[startFrame + periodFrames]
                 else -> min(windowEndMs, startMs + params.defaultClipMs)
             }
             endMs = endMs.coerceIn(startMs + params.minClipMs, startMs + params.maxClipMs)
@@ -299,46 +324,103 @@ object StickerDetector {
         return if (count == 0) 0f else sum / count
     }
 
+    /** Frazione di pixel della regione piu' scuri di [threshold]. */
+    private fun darkFraction(frame: IntArray, width: Int, l: Int, t: Int, r: Int, b: Int, threshold: Int): Float {
+        var dark = 0
+        var count = 0
+        for (y in t until b) for (x in l until r) { if (frame[y * width + x] < threshold) dark++; count++ }
+        return if (count == 0) 0f else dark.toFloat() / count
+    }
+
     /**
-     * Periodo del loop (in fotogrammi) stimato con l'autocorrelazione della firma della regione
-     * (media di grigio per fotogramma): il primo picco locale con correlazione >= 0.75.
-     * Restituisce 0 se non c'è un periodo chiaro.
+     * Periodo del loop (in fotogrammi) tramite similarità fra fotogrammi a distanza di un lag:
+     * la regione viene ridotta a una griglia di blocchi e per ogni lag si misura la correlazione
+     * media fra il vettore dei blocchi al tempo i e quello al tempo i+lag. Un loop esatto dà
+     * similarità ~1 al periodo e ai suoi multipli: si sceglie il lag più piccolo fra quelli
+     * vicini al massimo. Restituisce 0 se la regione è quasi ferma o nessun lag convince.
      */
     internal fun estimatePeriod(
-        frames: List<IntArray>, width: Int, l: Int, t: Int, r: Int, b: Int, firstFrame: Int, lastFrame: Int,
+        frames: List<IntArray>, timesMs: List<Long>, width: Int,
+        l: Int, t: Int, r: Int, b: Int, firstFrame: Int, lastFrame: Int, params: Params,
     ): Int {
         val count = lastFrame - firstFrame + 1
         if (count < 6) return 0
-        val signal = FloatArray(count)
-        val area = ((r - l) * (b - t)).coerceAtLeast(1)
+        val cells = 6
+        val cellsTotal = cells * cells
+        val w = r - l
+        val h = b - t
+        if (w < cells || h < cells) return 0
+        // firma per fotogramma: medie dei blocchi, centrate
+        val signature = Array(count) { FloatArray(cellsTotal) }
         for (i in 0 until count) {
             val f = frames[firstFrame + i]
-            var sum = 0L
-            for (y in t until b) for (x in l until r) sum += f[y * width + x]
-            signal[i] = sum.toFloat() / area
-        }
-        val mean = signal.average().toFloat()
-        for (i in signal.indices) signal[i] -= mean
-        if (signal.sumOf { (it * it).toDouble() } < 1e-3) return 0
-        val maxLag = count / 2
-        if (maxLag < 2) return 0
-        val corr = FloatArray(maxLag + 1)
-        for (lag in 2..maxLag) {
-            var num = 0f
-            var denA = 0f
-            var denB = 0f
-            for (i in 0 until count - lag) {
-                num += signal[i] * signal[i + lag]
-                denA += signal[i] * signal[i]
-                denB += signal[i + lag] * signal[i + lag]
+            val sig = signature[i]
+            for (cy in 0 until cells) for (cx in 0 until cells) {
+                val x0 = l + w * cx / cells
+                val x1 = l + w * (cx + 1) / cells
+                val y0 = t + h * cy / cells
+                val y1 = t + h * (cy + 1) / cells
+                var sum = 0L
+                var n = 0
+                for (y in y0 until y1) for (x in x0 until x1) { sum += f[y * width + x]; n++ }
+                sig[cy * cells + cx] = if (n == 0) 0f else sum.toFloat() / n
             }
-            corr[lag] = if (denA <= 0f || denB <= 0f) 0f else num / sqrt(denA * denB)
+            val mean = sig.average().toFloat()
+            for (k in sig.indices) sig[k] -= mean
         }
-        for (lag in 2..maxLag) {
-            val isPeak = corr[lag] >= 0.75f &&
-                (lag == 2 || corr[lag] >= corr[lag - 1]) &&
-                (lag == maxLag || corr[lag] >= corr[lag + 1])
-            if (isPeak) return lag
+        // regione quasi ferma: nessun loop da misurare
+        var variability = 0.0
+        for (k in 0 until cellsTotal) {
+            var m = 0.0
+            for (i in 0 until count) m += signature[i][k]
+            m /= count
+            var v = 0.0
+            for (i in 0 until count) { val d = signature[i][k] - m; v += d * d }
+            variability += sqrt(v / count)
+        }
+        if (variability / cellsTotal < 2.0) return 0
+
+        val norms = FloatArray(count) { i -> sqrt(signature[i].sumOf { (it * it).toDouble() }).toFloat() + 1e-3f }
+        val minLag = (1 until count).firstOrNull { timesMs[firstFrame + it] - timesMs[firstFrame] >= params.minPeriodMs } ?: return 0
+        val maxLag = count * 3 / 5
+        if (maxLag <= minLag) return 0
+        val sims = FloatArray(maxLag + 1)
+        for (lag in minLag..maxLag) {
+            var acc = 0f
+            var pairs = 0
+            for (i in 0 until count - lag) {
+                val a = signature[i]
+                val c = signature[i + lag]
+                var dot = 0f
+                for (k in 0 until cellsTotal) dot += a[k] * c[k]
+                acc += dot / (norms[i] * norms[i + lag])
+                pairs++
+            }
+            sims[lag] = if (pairs == 0) 0f else acc / pairs
+        }
+        var best = 0f
+        var lowest = 1f
+        for (lag in minLag..maxLag) { if (sims[lag] > best) best = sims[lag]; if (sims[lag] < lowest) lowest = sims[lag] }
+        if (best < params.minLoopSimilarity) return 0
+        // un movimento lento e continuo ha similarita' alta e piatta a tutti i lag: non e' un loop.
+        // Un loop vero mostra picchi netti (al periodo e ai multipli) sopra una base piu' bassa.
+        val margin = 0.05f
+        if (best - lowest < margin) return 0
+        // il primo massimo locale vicino al migliore e' il periodo fondamentale (non un multiplo),
+        // purche' entro un periodo ci sia un vero avvallamento
+        for (lag in minLag..maxLag) {
+            val isPeak = (lag == minLag || sims[lag] >= sims[lag - 1]) && (lag == maxLag || sims[lag] >= sims[lag + 1])
+            if (!isPeak || sims[lag] < best - 0.02f) continue
+            if (lag == minLag) {
+                // al lag minimo la similarita' e' alta anche per un movimento lento che decade:
+                // e' un periodo solo se si ripete al doppio del lag
+                val harmonic = 2 * lag
+                if (harmonic > maxLag || sims[harmonic] < best - margin) continue
+            }
+            val dipEnd = min(maxLag, 2 * lag)
+            var dip = false
+            for (k in minLag..dipEnd) if (k != lag && sims[k] < best - margin) { dip = true; break }
+            if (dip) return lag
         }
         return 0
     }

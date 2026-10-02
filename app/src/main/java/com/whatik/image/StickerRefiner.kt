@@ -22,8 +22,8 @@ object StickerRefiner {
         val maxAspect: Float = 2.2f,
         /** Area massima del riquadro finale come frazione del fotogramma. */
         val maxAreaFraction: Float = 0.6f,
-        /** Il riquadro statico può allargare quello del movimento al massimo di questo fattore (area). */
-        val maxGrowth: Float = 8f,
+        /** Lato massimo dello sticker fermo come frazione della larghezza del fotogramma. */
+        val maxStaticSideFraction: Float = 0.6f,
         /** Margine attorno al riquadro finale. */
         val margin: Float = 0.06f,
     )
@@ -60,15 +60,18 @@ object StickerRefiner {
             val sr = sl + sw
             val sb = st + sh
             val intersects = sl < mr && ml < sr && st < mb && mt < sb
-            val motionArea = (mr - ml).toLong() * (mb - mt)
-            val staticArea = sw.toLong() * sh
-            if (intersects && staticArea <= motionArea * params.maxGrowth) {
+            // in uno sticker video spesso si muove solo una piccola parte: il riquadro fermo
+            // puo' essere molto piu' grande, purche' resti delle dimensioni di uno sticker
+            val plausible = max(sw, sh) <= fw * params.maxStaticSideFraction
+            if (intersects && plausible) {
                 l = min(l, sl); t = min(t, st); r = max(r, sr); b = max(b, sb)
             }
         }
         val w = r - l
         val h = b - t
         if (w <= 0 || h <= 0) return null
+        // uno sticker tagliato dal bordo (anche dopo l'allargamento) non e' completo
+        if (l <= border || t <= border || r >= fw - border || b >= fh - border) return null
         if (max(w, h).toFloat() / min(w, h) > params.maxAspect) return null
         if (w.toLong() * h > fw.toLong() * fh * params.maxAreaFraction) return null
         return StaticStickerFinder.toCrop(intArrayOf(l, t, w, h), fw, fh, params.margin)

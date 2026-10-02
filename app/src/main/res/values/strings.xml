@@ -191,7 +191,7 @@
     <string name="link_filter_all">Tutte (%d)</string>
 
     <string name="title_capture">Cattura automatica</string>
-    <string name="capture_intro">Whatik mostra una bolla sopra TikTok. Vai dove gli sticker sono visibili (un video, il pannello degli sticker, una chat), tocca la bolla e poi tocca lo sticker: Whatik capisce da solo se è animato o fermo e lo aggiunge alla libreria. Con "Tutti quelli in movimento" cattura in un colpo tutti gli sticker animati sullo schermo. Tieni premuta la bolla per terminare la sessione.</string>
+    <string name="capture_intro">Whatik mostra una bolla sopra TikTok. Vai dove gli sticker sono visibili (un video, il pannello degli sticker, una chat) e tocca la bolla: si apre un menu circolare. "Punta" ti fa toccare lo sticker da catturare: Whatik inquadra la zona, blocca lo schermo per 8 secondi (così non si scorre per sbaglio), registra a 20 fotogrammi al secondo, misura la durata del loop e capisce da solo se lo sticker è animato o fermo. "Tutti" cattura in un colpo tutti gli sticker animati sullo schermo. "Termina" o la pressione lunga sulla bolla chiudono la sessione.</string>
     <string name="capture_step_overlay">Permesso di mostrare la bolla sopra le altre app</string>
     <string name="capture_step_notifications">Notifiche, per vedere lo stato della sessione</string>
     <string name="capture_granted">Concesso</string>
@@ -216,8 +216,11 @@
     <string name="capture_status_none">Nessuno sticker animato trovato in questa cattura: tieni fermo lo schermo con lo sticker in vista</string>
     <string name="capture_status_stopped">Sessione terminata</string>
     <string name="aim_hint">Tocca lo sticker da catturare</string>
-    <string name="aim_all">Tutti quelli in movimento</string>
     <string name="aim_cancel">Annulla</string>
+    <string name="radial_point">Punta</string>
+    <string name="radial_all">Tutti</string>
+    <string name="radial_end">Termina</string>
+    <string name="lock_label">Whatik sta registrando: schermo bloccato</string>
     <string name="capture_kind_animated">animato</string>
     <string name="capture_kind_static">fermo</string>
     <string name="capture_notification_progress">%1$s · totale sessione: %2$d</string>
@@ -238,7 +241,7 @@
     </plurals>
     <string name="capture_too_few_frames">troppi pochi fotogrammi: lo schermo non cambiava</string>
     <string name="capture_failed">Cattura non riuscita: %s</string>
-    <string name="capture_tips">Suggerimenti: durante la cattura non scorrere. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi si prendono toccandoli (punta e cattura); "Tutti quelli in movimento" trova solo gli animati.</string>
+    <string name="capture_tips">Suggerimenti: durante la cattura lo schermo è bloccato da Whatik e mostra la zona inquadrata con il conto alla rovescia. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi si prendono con "Punta"; "Tutti" trova solo quelli animati.</string>
 
     <string name="default_pack_name">Sticker TikTok</string>
     <string name="default_publisher">Whatik</string>

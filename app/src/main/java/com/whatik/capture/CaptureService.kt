@@ -69,6 +69,8 @@ class CaptureService : Service() {
     private var imageReader: ImageReader? = null
     private var bubble: BubbleOverlay? = null
     private var aim: AimOverlay? = null
+    private var radial: RadialMenuOverlay? = null
+    private var lock: CaptureLockOverlay? = null
     private var tornDown = false
     private var screenWidth = 1
     private var screenHeight = 1
@@ -77,7 +79,10 @@ class CaptureService : Service() {
 
     /** Punto toccato (in pixel del fotogramma catturato) per la modalità "punta e cattura"; null = tutto ciò che si muove. */
     private var pointOfInterest: IntArray? = null
-    private var captureDurationMs = CAPTURE_ALL_MS
+    private var captureDurationMs = CAPTURE_MS
+    /** Zona inquadrata (in pixel del fotogramma catturato) a cui ritagliare i fotogrammi; null = tutto lo schermo. */
+    private var zone: android.graphics.Rect? = null
+    private var sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
 
     @Volatile private var capturing = false
     private var captureStartedAt = 0L
@@ -224,7 +229,7 @@ class CaptureService : Service() {
     private fun showBubble() {
         bubble = BubbleOverlay(
             context = this,
-            onTap = { showAim() },
+            onTap = { showRadialMenu() },
             onLongPress = {
                 teardown()
                 stopSelf()
@@ -232,7 +237,39 @@ class CaptureService : Service() {
         ).also { it.show() }
     }
 
-    /** Mirino: un tocco sullo sticker lo cattura (animato o fermo), "tutti" cattura ciò che si muove. */
+    /** Menu circolare attorno alla bolla: punta e cattura, tutti quelli in movimento, termina. */
+    private fun showRadialMenu() {
+        if (capturing || radial != null || aim != null) return
+        val center = bubble?.center() ?: return
+        radial = RadialMenuOverlay(
+            context = this,
+            anchorX = center[0],
+            anchorY = center[1],
+            items = listOf(
+                RadialMenuOverlay.Item(R.drawable.ic_aim, getString(R.string.radial_point), 0xFFFE2C55.toInt()) {
+                    dismissRadial()
+                    showAim()
+                },
+                RadialMenuOverlay.Item(R.drawable.ic_motion, getString(R.string.radial_all), 0xFF00897B.toInt()) {
+                    dismissRadial()
+                    beginCapture(null)
+                },
+                RadialMenuOverlay.Item(R.drawable.ic_close, getString(R.string.radial_end), 0xFF616161.toInt()) {
+                    dismissRadial()
+                    teardown()
+                    stopSelf()
+                },
+            ),
+            onDismiss = { dismissRadial() },
+        ).also { it.show() }
+    }
+
+    private fun dismissRadial() {
+        runCatching { radial?.hide() }
+        radial = null
+    }
+
+    /** Mirino: un tocco sullo sticker lo cattura (animato o fermo). */
     private fun showAim() {
         if (capturing || aim != null) return
         aim = AimOverlay(
@@ -242,10 +279,6 @@ class CaptureService : Service() {
                 val px = (x * captureWidth / screenWidth).toInt().coerceIn(0, captureWidth - 1)
                 val py = (y * captureHeight / screenHeight).toInt().coerceIn(0, captureHeight - 1)
                 beginCapture(intArrayOf(px, py))
-            },
-            onCaptureAll = {
-                dismissAim()
-                beginCapture(null)
             },
             onCancel = { dismissAim() },
         ).also { it.show() }
@@ -265,9 +298,30 @@ class CaptureService : Service() {
         sessionDir = dir
         frameFiles.clear()
         frameTimes.clear()
-        pointOfInterest = point
-        captureDurationMs = if (point != null) CAPTURE_POINT_MS else CAPTURE_ALL_MS
+        captureDurationMs = CAPTURE_MS
+        if (point != null) {
+            // zona inquadrata attorno al punto: i fotogrammi vengono ritagliati qui, cosi' si puo'
+            // campionare piu' spesso (sticker fluidi) e tutto cio' che si disegna fuori non entra
+            val side = (captureWidth * ZONE_FRACTION).toInt().coerceAtMost(minOf(captureWidth, captureHeight))
+            val zl = (point[0] - side / 2).coerceIn(0, captureWidth - side)
+            val zt = (point[1] - side / 2).coerceIn(0, captureHeight - side)
+            zone = android.graphics.Rect(zl, zt, zl + side, zt + side)
+            pointOfInterest = intArrayOf(point[0] - zl, point[1] - zt)
+            sampleIntervalMs = 1000L / CAPTURE_FPS_POINT
+        } else {
+            zone = null
+            pointOfInterest = null
+            sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
+        }
         bubble?.setVisible(false) // la bolla non deve finire nei fotogrammi
+        val screenZone = zone?.let { z ->
+            android.graphics.Rect(
+                z.left * screenWidth / captureWidth, z.top * screenHeight / captureHeight,
+                z.right * screenWidth / captureWidth, z.bottom * screenHeight / captureHeight,
+            )
+        }
+        runCatching { lock?.hide() }
+        lock = CaptureLockOverlay(this, screenZone, captureDurationMs).also { it.show() }
         status.value = getString(R.string.capture_status_recording)
         // breve attesa perché mirino e bolla spariscano dallo schermo prima del primo fotogramma
         handler.postDelayed({
@@ -284,7 +338,7 @@ class CaptureService : Service() {
         try {
             if (!capturing) return
             val now = SystemClock.elapsedRealtime()
-            if (now - lastSampleAt < 1000L / CAPTURE_FPS) return
+            if (now - lastSampleAt < sampleIntervalMs) return
             lastSampleAt = now
             val plane = image.planes[0]
             val pixelStride = plane.pixelStride
@@ -292,7 +346,12 @@ class CaptureService : Service() {
             val rowPadding = rowStride - pixelStride * image.width
             val bitmap = Bitmap.createBitmap(image.width + rowPadding / pixelStride, image.height, Bitmap.Config.ARGB_8888)
             bitmap.copyPixelsFromBuffer(plane.buffer)
-            val cropped = if (rowPadding > 0) Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height) else bitmap
+            val z = zone
+            val cropped = when {
+                z != null -> Bitmap.createBitmap(bitmap, z.left, z.top, z.width(), z.height())
+                rowPadding > 0 -> Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+                else -> bitmap
+            }
             val file = File(sessionDir, "f${frameFiles.size}.jpg")
             file.outputStream().use { cropped.compress(Bitmap.CompressFormat.JPEG, 88, it) }
             if (cropped !== bitmap) bitmap.recycle()
@@ -314,6 +373,8 @@ class CaptureService : Service() {
         val times = ArrayList(frameTimes)
         val point = pointOfInterest
         mainHandler.post {
+            runCatching { lock?.hide() }
+            lock = null
             bubble?.setVisible(true)
             bubble?.setState(BubbleOverlay.State.PROCESSING, "…")
         }
@@ -345,7 +406,8 @@ class CaptureService : Service() {
                 return item
             }
 
-            val detectorParams = StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f)
+            // a schermo intero si ignorano le fasce di sistema; la zona ritagliata non ne ha
+            val detectorParams = if (point == null) StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f) else StickerDetector.Params()
             val (grays, dims) = captured.grayFrames()
             val proposals = if (files.size >= MIN_FRAMES) StickerDetector.detect(grays, dims.first, dims.second, times, detectorParams) else emptyList()
             val (rgb, fw, fh) = captured.colorFrame()
@@ -470,6 +532,9 @@ class CaptureService : Service() {
         runCatching { bubble?.hide() }
         bubble = null
         dismissAim()
+        dismissRadial()
+        runCatching { lock?.hide() }
+        lock = null
         File(cacheDir, "capture").deleteRecursively()
         running.value = false
         status.value = getString(R.string.capture_status_stopped)
@@ -486,9 +551,12 @@ class CaptureService : Service() {
         private const val NOTIFICATION_ID = 41
         private const val RESULT_NOTIFICATION_ID = 42
         private const val MAX_CAPTURE_WIDTH = 1440
-        const val CAPTURE_ALL_MS = 5000L
-        const val CAPTURE_POINT_MS = 3000L
-        const val CAPTURE_FPS = 10
+        /** Durata della cattura: abbastanza da contenere due giri di un loop fino a ~4 s. */
+        const val CAPTURE_MS = 8000L
+        const val CAPTURE_FPS_ALL = 10
+        const val CAPTURE_FPS_POINT = 20
+        /** Lato della zona inquadrata in "punta e cattura", come frazione della larghezza. */
+        const val ZONE_FRACTION = 0.7f
         private const val MIN_FRAMES = 6
 
         /** true mentre la sessione (bolla + proiezione) è attiva. */

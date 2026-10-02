@@ -53,8 +53,8 @@ class StickerDetectorTest {
     @Test
     fun findsTwoRegionsInReadingOrder() {
         val (frames, times) = sequence(16) { f, i ->
-            fill(f, 60, 100, 20, if (i % 2 == 0) 220 else 30)
-            fill(f, 10, 20, 20, if (i % 3 == 0) 220 else 30)
+            fill(f, 60, 100, 20, if (i % 2 == 0) 220 else 60)
+            fill(f, 10, 20, 20, if (i % 3 == 0) 220 else 60)
         }
         val found = StickerDetector.detect(frames, w, h, times)
         assertEquals(2, found.size)
@@ -70,7 +70,7 @@ class StickerDetectorTest {
                 // scorrimento: tutto lo schermo cambia
                 for (p in f.indices) f[p] = (f[p] + i * 37) % 256
             } else {
-                fill(f, 30, 30, 20, if (i % 2 == 0) 230 else 20)
+                fill(f, 30, 30, 20, if (i % 2 == 0) 230 else 120)
             }
         }
         val found = StickerDetector.detect(frames, w, h, times)
@@ -115,5 +115,30 @@ class StickerDetectorTest {
         // nessun movimento attorno
         val still = BooleanArray(w * h) { p -> val x = p % w; val y = p / w; x in 10 until 30 && y in 10 until 30 }
         assertEquals(0f, StickerDetector.ringActivity(still, w, h, 10, 10, 30, 30), 1e-6f)
+    }
+
+    @Test
+    fun loopStartsAfterTheBlackRestartFrame() {
+        // loop di 4 fotogrammi (1 s): nero, chiaro, medio, scuro, nero, ...
+        val levels = intArrayOf(5, 220, 140, 80)
+        val (frames, times) = sequence(24) { f, i -> fill(f, 30, 50, 24, levels[i % 4]) }
+        val found = StickerDetector.detect(frames, w, h, times)
+        assertEquals(1, found.size)
+        val p = found[0]
+        assertEquals(1000L, p.endMs - p.startMs)
+        // parte dal fotogramma dopo quello nero
+        assertEquals(1 * intervalMs, p.startMs)
+    }
+
+    @Test
+    fun slowContinuousMotionHasNoLoop() {
+        // una sfumatura che si schiarisce piano: si muove ma non e' un loop, niente periodo "corto" per sbaglio
+        val (frames, times) = sequence(24) { f, i ->
+            for (y in 50 until 74) for (x in 30 until 54) f[y * w + x] = minOf(250, 40 + (x - 30) * 5 + i * 25)
+        }
+        val found = StickerDetector.detect(frames, w, h, times)
+        assertEquals(1, found.size)
+        // nessun periodo: durata di default (4 s) limitata alla finestra
+        assertTrue(found[0].endMs - found[0].startMs >= 3000L)
     }
 }
