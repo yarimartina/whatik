@@ -123,7 +123,8 @@ jobs:
       - name: Prepara IPA e app per simulatore
         working-directory: ios
         run: |
-          rm -rf dist && mkdir -p dist/Payload
+          # le schermate in dist/screens restano: si rifanno solo IPA e zip
+          rm -rf dist/Payload dist/Whatik.ipa dist/Whatik-simulator.zip && mkdir -p dist/Payload
           cp -R build/Build/Products/Release-iphoneos/Whatik.app dist/Payload/
           (cd dist && zip -qry Whatik.ipa Payload && rm -rf Payload)
           (cd build/Build/Products/Release-iphonesimulator && zip -qry ../../../../dist/Whatik-simulator.zip Whatik.app)
@@ -142,6 +143,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # prima si controlla che ci sia tutto, poi si sostituisce la release
+          ls ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip ios/dist/screens/*.png
           gh release delete ios-latest --yes --cleanup-tag || true
           git push --delete origin ios-latest || true
           cat > notes.md <<NOTES
