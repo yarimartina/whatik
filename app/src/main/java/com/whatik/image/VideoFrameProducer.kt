@@ -39,8 +39,8 @@ class VideoFrameProducer(
 
     override val info: FrameInfo
         get() {
-            val (_, _, side) = crop.toPixels(video.width, video.height)
-            return FrameInfo(side, side, List(frameCount) { frameDurationMs })
+            val (_, _, w, h) = crop.toPixels(video.width, video.height)
+            return FrameInfo(w, h, List(frameCount) { frameDurationMs })
         }
 
     override fun produce(consume: (Int, Bitmap) -> Boolean) {
@@ -53,7 +53,7 @@ class VideoFrameProducer(
         try {
             retriever.setDataSource(file.absolutePath)
             // decodifica già ridotta: il ritaglio deve coprire ~targetSide px, non serve di più
-            val cropSide = crop.toPixels(video.width, video.height)[2].coerceAtLeast(1)
+            val cropSide = crop.toPixels(video.width, video.height).let { maxOf(it[2], it[3]) }.coerceAtLeast(1)
             val scale = (targetSide.toFloat() / cropSide).coerceAtMost(1f)
             val dstW = (video.width * scale).roundToInt().coerceAtLeast(1)
             val dstH = (video.height * scale).roundToInt().coerceAtLeast(1)

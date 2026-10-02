@@ -368,9 +368,9 @@ class CaptureService : Service() {
             } else {
                 // punta e cattura: una regione in movimento che contiene il punto, altrimenti uno sticker fermo
                 val hit = proposals.firstOrNull { p ->
-                    val (l, t, side) = p.crop.toPixels(captured.width, captured.height)
-                    val slack = side / 4
-                    point[0] in (l - slack)..(l + side + slack) && point[1] in (t - slack)..(t + side + slack)
+                    val (l, t, cw, ch) = p.crop.toPixels(captured.width, captured.height)
+                    val slack = maxOf(cw, ch) / 4
+                    point[0] in (l - slack)..(l + cw + slack) && point[1] in (t - slack)..(t + ch + slack)
                 }
                 val seed = intArrayOf(point[0] * fw / captured.width, point[1] * fh / captured.height)
                 val hitCrop = hit?.let { refined(it, seed) ?: it.crop }

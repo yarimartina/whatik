@@ -67,16 +67,15 @@ class StaticStickerFinderTest {
         val crop = StaticStickerFinder.toCrop(intArrayOf(100, 50, 60, 100), 400, 300, margin = 0.1f)
         assertEquals(130f / 400f, crop.cx, 1e-4f)
         assertEquals(100f / 300f, crop.cy, 1e-4f)
-        assertEquals(110f / 300f, crop.size, 1e-4f)
+        assertEquals(110f, crop.width * 400f, 1e-3f)
+        assertEquals(110f, crop.height * 300f, 1e-3f)
     }
 
     @Test
     fun effectiveCropIsStable() {
-        val spec = CropSpec(0.02f, 0.5f, 0.5f).effective(1000, 2000)
+        val spec = CropSpec.square(0.02f, 0.5f, 0.5f, 1000, 2000).effective(1000, 2000)
         val again = spec.effective(1000, 2000)
-        assertEquals(spec.cx, again.cx, 1e-5f)
-        assertEquals(spec.cy, again.cy, 1e-5f)
-        assertEquals(spec.size, again.size, 1e-5f)
+        assertEquals(spec, again)
         assertEquals(0.25f, spec.cx, 1e-5f) // centro spostato dentro: lato 500 -> centro a 250
     }
 }

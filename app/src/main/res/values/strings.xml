@@ -106,11 +106,12 @@
     <string name="share_nothing">Nessuna immagine da importare</string>
 
     <string name="title_editor">Ritaglia lo sticker</string>
-    <string name="editor_hint_video">Se il rilevamento automatico non basta: sposta l\'immagine sotto il riquadro con un dito, ingrandisci o riduci con due dita (o con il cursore) e scegli l\'intervallo da animare (massimo 10 secondi).</string>
-    <string name="editor_hint_image">Sposta l\'immagine sotto il riquadro con un dito; ingrandisci o riduci con due dita o con il cursore.</string>
-    <string name="editor_hint_animated">Sposta l\'immagine sotto il riquadro con un dito; ingrandisci o riduci con due dita o con il cursore. Con i cursori del tempo puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
+    <string name="editor_hint_video">Se il rilevamento automatico non basta: trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo; due dita ingrandiscono la vista. Poi scegli l\'intervallo da animare (massimo 10 secondi).</string>
+    <string name="editor_hint_image">Trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo. Due dita ingrandiscono la vista.</string>
+    <string name="editor_hint_animated">Trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo; due dita ingrandiscono la vista. Con i cursori del tempo puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
+    <string name="editor_full_image">Tutta l\'immagine</string>
+    <string name="editor_make_square">Rendi quadrato</string>
     <string name="editor_keep_original">Conserva anche l\'originale in libreria (utile se contiene altri sticker)</string>
-    <string name="editor_crop_size">Ingrandimento</string>
     <string name="editor_range">Intervallo da animare</string>
     <string name="editor_duration">%1$.1f s · %2$d fotogrammi</string>
     <string name="editor_name">Nome dello sticker</string>

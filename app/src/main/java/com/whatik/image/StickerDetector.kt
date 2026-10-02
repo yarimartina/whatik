@@ -137,7 +137,7 @@ object StickerDetector {
             val side = max(w, h) * (1f + params.margin)
             val cx = (l + r) / 2f
             val cy = (t + b) / 2f
-            val crop = CropSpec(cx / width, cy / height, side / min(width, height)).normalized()
+            val crop = CropSpec.square(cx / width, cy / height, side / min(width, height), width, height)
             proposals.add(Proposal(crop, startMs, endMs, intArrayOf(l, t, w, h), activity))
         }
         // ordine di lettura: dall'alto in basso, da sinistra a destra (a parità di riga)

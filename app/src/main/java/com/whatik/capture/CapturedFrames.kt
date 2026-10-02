@@ -93,12 +93,12 @@ class CapturedFrameProducer(
 
     override val info: FrameInfo
         get() {
-            val (_, _, side) = crop.toPixels(frames.width, frames.height)
+            val (_, _, cw, ch) = crop.toPixels(frames.width, frames.height)
             val durations = indices.mapIndexed { i, idx ->
                 val next = if (i + 1 < indices.size) frames.timesMs[indices[i + 1]] else frames.timesMs[idx] + averageStep()
                 (next - frames.timesMs[idx]).toInt().coerceAtLeast(StickerConverter.MIN_FRAME_MS)
             }
-            return FrameInfo(side, side, durations)
+            return FrameInfo(cw, ch, durations)
         }
 
     private fun averageStep(): Long {

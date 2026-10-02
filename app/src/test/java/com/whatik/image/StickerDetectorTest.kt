@@ -44,7 +44,7 @@ class StickerDetectorTest {
         // il ritaglio è centrato sulla regione: centro atteso (32, 62) normalizzato
         assertEquals(0.32f, p.crop.cx, 0.03f)
         assertEquals(62f / h, p.crop.cy, 0.03f)
-        assertTrue(p.crop.size in 0.2f..0.4f)
+        assertTrue(p.crop.width * w in 20f..40f)
         assertEquals(0L, p.startMs)
         // il lampeggio ha periodo 2 fotogrammi
         assertEquals(2 * intervalMs, p.endMs - p.startMs)

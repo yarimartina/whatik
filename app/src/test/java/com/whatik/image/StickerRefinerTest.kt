@@ -28,11 +28,11 @@ class StickerRefinerTest {
         val motionBox = intArrayOf(60, 40, 20, 20) // in analisi: 180..240 x 120..180 nel fotogramma
         val crop = StickerRefiner.refine(motionBox, aw, ah, rgb, fw, fh)
         assertNotNull(crop)
-        val (l, t, side) = crop!!.toPixels(fw, fh)
+        val (l, t, cw, ch) = crop!!.toPixels(fw, fh)
         assertEquals(210f / fw, crop.cx, 0.02f)
         assertEquals(150f / fh, crop.cy, 0.02f)
-        assertTrue("side $side", side in 121..133)
-        assertTrue(l <= 150 && l + side >= 270 && t <= 90 && t + side >= 210)
+        assertTrue("side $cw", cw in 121..133)
+        assertTrue(l <= 150 && l + cw >= 270 && t <= 90 && t + ch >= 210)
     }
 
     @Test

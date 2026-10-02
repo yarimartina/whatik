@@ -106,11 +106,12 @@
     <string name="share_nothing">No image to import</string>
 
     <string name="title_editor">Crop the sticker</string>
-    <string name="editor_hint_video">If automatic detection is not enough: move the image under the box with one finger, zoom with two fingers (or the slider) and pick the time range to animate (10 seconds max).</string>
-    <string name="editor_hint_image">Move the image under the box with one finger; zoom in or out with two fingers or the slider.</string>
-    <string name="editor_hint_animated">Move the image under the box with one finger; zoom in or out with two fingers or the slider. Use the time sliders to shorten the animation (the crop applies to every frame).</string>
+    <string name="editor_hint_video">If automatic detection is not enough: drag the edges or corners of the box to resize it, the inside to move it; two fingers zoom the view. Then pick the time range to animate (10 seconds max).</string>
+    <string name="editor_hint_image">Drag the edges or corners of the box to resize it, the inside to move it. Two fingers zoom the view.</string>
+    <string name="editor_hint_animated">Drag the edges or corners of the box to resize it, the inside to move it; two fingers zoom the view. Use the time sliders to shorten the animation (the crop applies to every frame).</string>
+    <string name="editor_full_image">Whole image</string>
+    <string name="editor_make_square">Make square</string>
     <string name="editor_keep_original">Also keep the original in the library (useful if it contains other stickers)</string>
-    <string name="editor_crop_size">Zoom</string>
     <string name="editor_range">Range to animate</string>
     <string name="editor_duration">%1$.1f s · %2$d frames</string>
     <string name="editor_name">Sticker name</string>

@@ -114,7 +114,7 @@ object StaticStickerFinder {
     fun toCrop(box: IntArray, width: Int, height: Int, margin: Float = 0.08f): CropSpec {
         val (l, t, w, h) = box
         val side = max(w, h) * (1f + margin)
-        return CropSpec((l + w / 2f) / width, (t + h / 2f) / height, side / min(width, height)).normalized()
+        return CropSpec.square((l + w / 2f) / width, (t + h / 2f) / height, side / min(width, height), width, height)
     }
 
     private fun fallback(width: Int, height: Int, x: Int, y: Int, params: Params): Result {

@@ -11,7 +11,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -34,24 +35,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
@@ -115,14 +121,21 @@ fun EditorScreen(
                     ),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.editor_crop_size), style = MaterialTheme.typography.labelLarge)
-                Slider(
-                    value = 1f - state.crop.size,
-                    onValueChange = { onCropChange(state.crop.copy(size = 1f - it)) },
-                    valueRange = 0f..(1f - CropSpec.MIN_SIZE),
-                    enabled = !state.converting,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onCropChange(CropSpec.FULL) }, enabled = !state.converting) {
+                        Text(stringResource(R.string.editor_full_image))
+                    }
+                    TextButton(
+                        onClick = {
+                            val c = state.crop.normalized()
+                            val w = state.source.width.coerceAtLeast(1)
+                            val h = state.source.height.coerceAtLeast(1)
+                            val sidePx = maxOf(c.width * w, c.height * h)
+                            onCropChange(CropSpec.square(c.cx, c.cy, sidePx / minOf(w, h), w, h))
+                        },
+                        enabled = !state.converting,
+                    ) { Text(stringResource(R.string.editor_make_square)) }
+                }
                 if (state.hasTimeline) {
                     val durationSec = state.durationMs / 1000f
                     Text(stringResource(R.string.editor_range), style = MaterialTheme.typography.labelLarge)
@@ -242,72 +255,134 @@ private fun ProposalsSection(
     }
 }
 
+/** Zona toccata del riquadro: interno (sposta), bordi e angoli (ridimensiona). */
+private enum class Zone { MOVE, LEFT, RIGHT, TOP, BOTTOM, TL, TR, BL, BR }
+
 /**
- * Riquadro di ritaglio fisso al centro; sotto scorre l'immagine: un dito la sposta, due dita
- * la ingrandiscono (come nei ritaglia-foto). Il riquadro vale sempre un quadrato dell'immagine.
+ * Ritaglio come in un editor di foto: l'immagine è adattata all'area, il riquadro si
+ * ridimensiona trascinando bordi e angoli e si sposta trascinandone l'interno.
+ * Due dita ingrandiscono la vista, un dito fuori dal riquadro la sposta quando è ingrandita.
  */
 @Composable
 private fun CropPreview(state: EditorState, onCropChange: (CropSpec) -> Unit, modifier: Modifier = Modifier) {
     val imgW = state.source.width.coerceAtLeast(1)
     val imgH = state.source.height.coerceAtLeast(1)
-    val crop = state.crop.effective(imgW, imgH)
+    val crop = state.crop.normalized()
     val latestCrop = rememberUpdatedState(crop)
     val preview = state.preview
     val imageBitmap = remember(preview) { preview?.asImageBitmap() }
+    var viewZoom by remember(state.source) { mutableFloatStateOf(1f) }
+    var viewPan by remember(state.source) { mutableStateOf(Offset.Zero) }
+    val latestZoom = rememberUpdatedState(viewZoom)
+    val latestPan = rememberUpdatedState(viewPan)
+    var activeZone by remember { mutableStateOf<Zone?>(null) }
+    val touchTolerance = with(LocalDensity.current) { 22.dp.toPx() }
+
     Box(
         modifier
             .fillMaxWidth()
-            .height(340.dp)
+            .height(380.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(Color.Black)
             .pointerInput(state.converting, imgW, imgH) {
                 if (state.converting) return@pointerInput
-                detectTransformGestures(panZoomLock = false) { _, pan, zoom, _ ->
-                    val current = latestCrop.value
-                    val frame = frameSide(size.width.toFloat(), size.height.toFloat())
-                    val cropSidePx = current.size * minOf(imgW, imgH)
-                    val k = frame / cropSidePx // pixel di vista per pixel di immagine
-                    onCropChange(
-                        CropSpec(
-                            cx = current.cx - pan.x / (k * imgW),
-                            cy = current.cy - pan.y / (k * imgH),
-                            size = current.size / zoom,
-                        ).effective(imgW, imgH),
-                    )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val bw = size.width.toFloat()
+                    val bh = size.height.toFloat()
+                    val startRect = imageRect(bw, bh, imgW, imgH, latestZoom.value, latestPan.value)
+                    val zone = hitZone(down.position, cropToView(latestCrop.value, startRect), touchTolerance)
+                    activeZone = zone
+                    var pinching = false
+                    var lastDistance = 0f
+                    do {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.size >= 2) {
+                            val centroid = (pressed[0].position + pressed[1].position) / 2f
+                            val distance = (pressed[0].position - pressed[1].position).getDistance()
+                            if (!pinching) {
+                                pinching = true
+                                activeZone = null
+                            } else if (lastDistance > 0f) {
+                                val oldZoom = latestZoom.value
+                                val newZoom = (oldZoom * distance / lastDistance).coerceIn(1f, 8f)
+                                val rect = imageRect(bw, bh, imgW, imgH, oldZoom, latestPan.value)
+                                // il punto dell'immagine sotto le dita resta fermo
+                                val fx = (centroid.x - rect.left) / rect.width
+                                val fy = (centroid.y - rect.top) / rect.height
+                                val s0 = minOf(bw / imgW, bh / imgH)
+                                val newW = imgW * s0 * newZoom
+                                val newH = imgH * s0 * newZoom
+                                val newLeft = centroid.x - fx * newW
+                                val newTop = centroid.y - fy * newH
+                                viewZoom = newZoom
+                                viewPan = clampPan(Offset(newLeft - (bw - newW) / 2f, newTop - (bh - newH) / 2f), bw, bh, newW, newH)
+                            }
+                            lastDistance = distance
+                        } else if (pressed.size == 1 && !pinching) {
+                            val change = pressed[0]
+                            val delta = change.position - change.previousPosition
+                            val rect = imageRect(bw, bh, imgW, imgH, latestZoom.value, latestPan.value)
+                            if (zone == null) {
+                                if (latestZoom.value > 1f) {
+                                    viewPan = clampPan(latestPan.value + delta, bw, bh, rect.width, rect.height)
+                                }
+                            } else {
+                                val dx = delta.x / rect.width
+                                val dy = delta.y / rect.height
+                                onCropChange(adjustCrop(latestCrop.value, zone, dx, dy))
+                            }
+                        }
+                        event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                    activeZone = null
                 }
             }
             .drawWithContent {
                 val bw = size.width
                 val bh = size.height
-                val frame = frameSide(bw, bh)
-                val cropSidePx = crop.size * minOf(imgW, imgH)
-                val k = frame / cropSidePx
-                val originX = bw / 2f - crop.cx * imgW * k
-                val originY = bh / 2f - crop.cy * imgH * k
+                val rect = imageRect(bw, bh, imgW, imgH, viewZoom, viewPan)
                 if (imageBitmap != null) {
                     drawImage(
                         image = imageBitmap,
-                        dstOffset = IntOffset(originX.roundToInt(), originY.roundToInt()),
-                        dstSize = IntSize((imgW * k).roundToInt().coerceAtLeast(1), (imgH * k).roundToInt().coerceAtLeast(1)),
+                        dstOffset = IntOffset(rect.left.roundToInt(), rect.top.roundToInt()),
+                        dstSize = IntSize(rect.width.roundToInt().coerceAtLeast(1), rect.height.roundToInt().coerceAtLeast(1)),
                     )
                 }
                 drawContent()
-                val left = (bw - frame) / 2f
-                val top = (bh - frame) / 2f
+                val c = cropToView(crop, rect)
                 val dim = Color.Black.copy(alpha = 0.55f)
-                drawRect(dim, Offset(0f, 0f), Size(bw, top))
-                drawRect(dim, Offset(0f, top + frame), Size(bw, bh - top - frame))
-                drawRect(dim, Offset(0f, top), Size(left, frame))
-                drawRect(dim, Offset(left + frame, top), Size(bw - left - frame, frame))
-                drawRect(Color.White, Offset(left, top), Size(frame, frame), style = Stroke(width = 3.dp.toPx()))
-                val handle = 18.dp.toPx()
-                val strokeWidth = 5.dp.toPx()
-                for ((hx, hy) in listOf(left to top, left + frame to top, left to top + frame, left + frame to top + frame)) {
-                    val dx = if (hx == left) handle else -handle
-                    val dy = if (hy == top) handle else -handle
-                    drawLine(Color.White, Offset(hx, hy), Offset(hx + dx, hy), strokeWidth)
-                    drawLine(Color.White, Offset(hx, hy), Offset(hx, hy + dy), strokeWidth)
+                drawRect(dim, Offset(0f, 0f), Size(bw, c.top.coerceAtLeast(0f)))
+                drawRect(dim, Offset(0f, c.bottom), Size(bw, (bh - c.bottom).coerceAtLeast(0f)))
+                drawRect(dim, Offset(0f, c.top), Size(c.left.coerceAtLeast(0f), c.height))
+                drawRect(dim, Offset(c.right, c.top), Size((bw - c.right).coerceAtLeast(0f), c.height))
+                drawRect(Color.White, Offset(c.left, c.top), Size(c.width, c.height), style = Stroke(width = 2.dp.toPx()))
+                if (activeZone != null) {
+                    val grid = Color.White.copy(alpha = 0.5f)
+                    for (i in 1..2) {
+                        val x = c.left + c.width * i / 3f
+                        val y = c.top + c.height * i / 3f
+                        drawLine(grid, Offset(x, c.top), Offset(x, c.bottom), 1.dp.toPx())
+                        drawLine(grid, Offset(c.left, y), Offset(c.right, y), 1.dp.toPx())
+                    }
                 }
+                // maniglie: angoli a "L" e barrette al centro dei bordi
+                val handle = minOf(20.dp.toPx(), c.width / 3f, c.height / 3f).coerceAtLeast(4f)
+                val thick = 5.dp.toPx()
+                for ((hx, hy) in listOf(c.left to c.top, c.right to c.top, c.left to c.bottom, c.right to c.bottom)) {
+                    val dx = if (hx == c.left) handle else -handle
+                    val dy = if (hy == c.top) handle else -handle
+                    drawLine(Color.White, Offset(hx, hy), Offset(hx + dx, hy), thick)
+                    drawLine(Color.White, Offset(hx, hy), Offset(hx, hy + dy), thick)
+                }
+                val bar = minOf(24.dp.toPx(), c.width / 3f, c.height / 3f).coerceAtLeast(4f)
+                val mx = (c.left + c.right) / 2f
+                val my = (c.top + c.bottom) / 2f
+                drawLine(Color.White, Offset(mx - bar / 2, c.top), Offset(mx + bar / 2, c.top), thick)
+                drawLine(Color.White, Offset(mx - bar / 2, c.bottom), Offset(mx + bar / 2, c.bottom), thick)
+                drawLine(Color.White, Offset(c.left, my - bar / 2), Offset(c.left, my + bar / 2), thick)
+                drawLine(Color.White, Offset(c.right, my - bar / 2), Offset(c.right, my + bar / 2), thick)
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -317,5 +392,77 @@ private fun CropPreview(state: EditorState, onCropChange: (CropSpec) -> Unit, mo
     }
 }
 
-/** Lato del riquadro fisso: il 72% del lato minore dell'area di anteprima. */
-private fun frameSide(boxWidth: Float, boxHeight: Float): Float = 0.72f * minOf(boxWidth, boxHeight)
+/** Rettangolo (in pixel dell'area) occupato dall'immagine adattata, con zoom e spostamento della vista. */
+private fun imageRect(bw: Float, bh: Float, imgW: Int, imgH: Int, zoom: Float, pan: Offset): Rect {
+    val s = minOf(bw / imgW, bh / imgH) * zoom
+    val w = imgW * s
+    val h = imgH * s
+    val left = (bw - w) / 2f + pan.x
+    val top = (bh - h) / 2f + pan.y
+    return Rect(left, top, left + w, top + h)
+}
+
+/** Lo spostamento della vista non deve lasciare vuoti ai lati quando l'immagine è più grande dell'area. */
+private fun clampPan(pan: Offset, bw: Float, bh: Float, imageW: Float, imageH: Float): Offset {
+    val maxX = ((imageW - bw) / 2f).coerceAtLeast(0f)
+    val maxY = ((imageH - bh) / 2f).coerceAtLeast(0f)
+    return Offset(pan.x.coerceIn(-maxX, maxX), pan.y.coerceIn(-maxY, maxY))
+}
+
+private fun cropToView(crop: CropSpec, rect: Rect): Rect = Rect(
+    rect.left + crop.left * rect.width,
+    rect.top + crop.top * rect.height,
+    rect.left + crop.right * rect.width,
+    rect.top + crop.bottom * rect.height,
+)
+
+private fun hitZone(p: Offset, c: Rect, tol: Float): Zone? {
+    fun near(a: Float, b: Float) = kotlin.math.abs(a - b) <= tol
+    val insideX = p.x >= c.left - tol && p.x <= c.right + tol
+    val insideY = p.y >= c.top - tol && p.y <= c.bottom + tol
+    if (!insideX || !insideY) return null
+    val l = near(p.x, c.left)
+    val r = near(p.x, c.right)
+    val t = near(p.y, c.top)
+    val b = near(p.y, c.bottom)
+    return when {
+        l && t -> Zone.TL
+        r && t -> Zone.TR
+        l && b -> Zone.BL
+        r && b -> Zone.BR
+        l -> Zone.LEFT
+        r -> Zone.RIGHT
+        t -> Zone.TOP
+        b -> Zone.BOTTOM
+        p.x > c.left && p.x < c.right && p.y > c.top && p.y < c.bottom -> Zone.MOVE
+        else -> null
+    }
+}
+
+/** Applica un trascinamento (in frazioni dell'immagine) alla zona indicata, tenendo il riquadro valido. */
+private fun adjustCrop(crop: CropSpec, zone: Zone, dx: Float, dy: Float): CropSpec {
+    val min = CropSpec.MIN_SIZE
+    var l = crop.left
+    var t = crop.top
+    var r = crop.right
+    var b = crop.bottom
+    when (zone) {
+        Zone.MOVE -> {
+            val w = r - l
+            val h = b - t
+            l = (l + dx).coerceIn(0f, 1f - w)
+            t = (t + dy).coerceIn(0f, 1f - h)
+            r = l + w
+            b = t + h
+        }
+        Zone.LEFT -> l = (l + dx).coerceIn(0f, r - min)
+        Zone.RIGHT -> r = (r + dx).coerceIn(l + min, 1f)
+        Zone.TOP -> t = (t + dy).coerceIn(0f, b - min)
+        Zone.BOTTOM -> b = (b + dy).coerceIn(t + min, 1f)
+        Zone.TL -> { l = (l + dx).coerceIn(0f, r - min); t = (t + dy).coerceIn(0f, b - min) }
+        Zone.TR -> { r = (r + dx).coerceIn(l + min, 1f); t = (t + dy).coerceIn(0f, b - min) }
+        Zone.BL -> { l = (l + dx).coerceIn(0f, r - min); b = (b + dy).coerceIn(t + min, 1f) }
+        Zone.BR -> { r = (r + dx).coerceIn(l + min, 1f); b = (b + dy).coerceIn(t + min, 1f) }
+    }
+    return CropSpec(l, t, r, b)
+}

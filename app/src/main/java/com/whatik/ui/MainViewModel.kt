@@ -340,7 +340,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _editorState.value = EditorState(
                     source = EditorSource.Video(file, videoInfo),
                     name = StickerLibrary.stripExtension(displayName ?: "sticker").take(60),
-                    crop = CropSpec.DEFAULT,
+                    crop = CropSpec.square(0.5f, 0.5f, 0.6f, videoInfo.width, videoInfo.height),
                     startMs = 0,
                     endMs = end,
                     previewTimeMs = 0,
