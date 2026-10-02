@@ -43,13 +43,16 @@ object TileGridFinder {
 
     fun analyze(rgb: IntArray, width: Int, height: Int, params: Params = Params()): Result {
         // 1) sfondo del pannello: colore piu' frequente nella parte bassa del fotogramma
-        val counts = HashMap<Int, Int>()
+        val counts = HashMap<Int, LongArray>()
         val fromY = (height * (1f - params.panelFraction)).roundToInt().coerceIn(0, height - 1)
         for (y in fromY until height) for (x in 0 until width) {
-            val q = quantize(rgb[y * width + x])
-            counts[q] = (counts[q] ?: 0) + 1
+            val c = rgb[y * width + x]
+            val acc = counts.getOrPut(quantize(c)) { LongArray(4) }
+            acc[0]++; acc[1] += ((c shr 16) and 0xFF).toLong(); acc[2] += ((c shr 8) and 0xFF).toLong(); acc[3] += (c and 0xFF).toLong()
         }
-        val bg = dequantize(counts.maxByOrNull { it.value }?.key ?: return Result(emptyList(), 0xFFFFFF, 0))
+        // colore del pannello: media dei pixel del gruppo più frequente (serve preciso per togliere le bande)
+        val mode = counts.values.maxByOrNull { it[0] } ?: return Result(emptyList(), 0xFFFFFF, 0)
+        val bg = (((mode[1] / mode[0]).toInt()) shl 16) or (((mode[2] / mode[0]).toInt()) shl 8) or ((mode[3] / mode[0]).toInt())
 
         // 2) maschera dei pixel non sfondo, con una leggera dilatazione per chiudere i buchi
         val mask = BooleanArray(width * height)
@@ -165,13 +168,6 @@ object TileGridFinder {
     }
 
     private fun quantize(c: Int): Int = ((c shr 19) and 0x1F shl 10) or ((c shr 11) and 0x1F shl 5) or ((c shr 3) and 0x1F)
-
-    private fun dequantize(q: Int): Int {
-        val r = ((q shr 10) and 0x1F) shl 3
-        val g = ((q shr 5) and 0x1F) shl 3
-        val b = (q and 0x1F) shl 3
-        return (r shl 16) or (g shl 8) or b
-    }
 
     private fun isBackground(c: Int, bg: Int, tolerance: Int): Boolean {
         val dr = abs(((c shr 16) and 0xFF) - ((bg shr 16) and 0xFF))
