@@ -107,7 +107,7 @@ struct AnalysisView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    if result.candidates.isEmpty, case .image(_, let data) = result.source {
+                    if result.candidates.isEmpty, let data = screenshotData {
                         Button {
                             dismiss()
                             Task { await model.importData([AppModel.Incoming(data: data, name: "Screenshot")], source: "screenshot") }
@@ -150,6 +150,12 @@ struct AnalysisView: View {
             }
             .onAppear { selected = Set(result.candidates.map { $0.id }) }
         }
+    }
+
+    /// Lo screenshot originale, per importarlo e ritagliarlo a mano se non ci sono tessere.
+    private var screenshotData: Data? {
+        if case .image(_, let data) = result.source { return data }
+        return nil
     }
 
     private func candidateCell(_ candidate: Candidate) -> some View {

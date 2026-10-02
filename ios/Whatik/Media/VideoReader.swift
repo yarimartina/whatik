@@ -13,9 +13,10 @@ final class VideoReader {
     private let context = CIContext(options: [.cacheIntermediates: false])
 
     init(url: URL) throws {
-        self.url = url
-        asset = AVURLAsset(url: url)
+        let asset = AVURLAsset(url: url)
         guard let track = asset.tracks(withMediaType: .video).first else { throw WhatikError.conversion("Il file non contiene video") }
+        self.url = url
+        self.asset = asset
         self.track = track
         durationMs = max(0, Int((CMTimeGetSeconds(asset.duration) * 1000).rounded()))
         let rect = CGRect(origin: .zero, size: track.naturalSize).applying(track.preferredTransform)
@@ -102,7 +103,8 @@ final class VideoFrameSource: FrameSource {
     let durationsMs: [Int]
 
     init(url: URL, crop: CropSpec, startMs: Int, endMs: Int, fps: Int = 15, maxWidth: Int = 720) throws {
-        reader = try VideoReader(url: url)
+        let reader = try VideoReader(url: url)
+        self.reader = reader
         self.crop = crop
         self.startMs = startMs
         self.maxWidth = maxWidth
