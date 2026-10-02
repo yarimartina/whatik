@@ -74,9 +74,21 @@ jobs:
       - name: Test dell'app nel simulatore (ImageIO, AVFoundation, registrazione sintetica)
         working-directory: ios
         run: |
+          set -o pipefail
           xcodebuild test -project Whatik.xcodeproj -scheme Whatik \
             -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build-test \
-            CODE_SIGNING_ALLOWED=NO -quiet
+            -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 \
+            | tee test.log | grep -E "error:|Test Case|Executed|WHATIK|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test.log
+
+      - name: Risultati dei test (se falliti)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            ios/TestResults.xcresult
+            ios/test.log
 
       - name: Compila per il simulatore
         working-directory: ios
