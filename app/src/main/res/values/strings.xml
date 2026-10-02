@@ -228,6 +228,10 @@
         <item quantity="other">%d sticker nel pannello: registro</item>
     </plurals>
     <string name="capture_no_grid">Nessuna griglia di sticker: catturo ciò che si muove</string>
+    <plurals name="capture_cut_tiles">
+        <item quantity="one">%d sticker tagliato dal bordo, saltato: scorri il pannello e ripeti</item>
+        <item quantity="other">%d sticker tagliati dal bordo, saltati: scorri il pannello e ripeti</item>
+    </plurals>
     <string name="capture_kind_animated">animato</string>
     <string name="capture_kind_static">fermo</string>
     <string name="capture_notification_progress">%1$s · totale sessione: %2$d</string>

@@ -32,11 +32,16 @@ object TileGridFinder {
         val sizeTolerance: Float = 0.15f,
     )
 
+    /** Tessere trovate, colore di sfondo del pannello (RGB) e numero di tessere scartate perché tagliate. */
+    class Result(val tiles: List<IntArray>, val background: Int, val cutTiles: Int)
+
     /**
      * @param rgb pixel (un Int per pixel), riga per riga
      * @return rettangoli (left, top, width, height) in ordine di lettura
      */
-    fun find(rgb: IntArray, width: Int, height: Int, params: Params = Params()): List<IntArray> {
+    fun find(rgb: IntArray, width: Int, height: Int, params: Params = Params()): List<IntArray> = analyze(rgb, width, height, params).tiles
+
+    fun analyze(rgb: IntArray, width: Int, height: Int, params: Params = Params()): Result {
         // 1) sfondo del pannello: colore piu' frequente nella parte bassa del fotogramma
         val counts = HashMap<Int, Int>()
         val fromY = (height * (1f - params.panelFraction)).roundToInt().coerceIn(0, height - 1)
@@ -44,7 +49,7 @@ object TileGridFinder {
             val q = quantize(rgb[y * width + x])
             counts[q] = (counts[q] ?: 0) + 1
         }
-        val bg = dequantize(counts.maxByOrNull { it.value }?.key ?: return emptyList())
+        val bg = dequantize(counts.maxByOrNull { it.value }?.key ?: return Result(emptyList(), 0xFFFFFF, 0))
 
         // 2) maschera dei pixel non sfondo, con una leggera dilatazione per chiudere i buchi
         val mask = BooleanArray(width * height)
@@ -88,18 +93,20 @@ object TileGridFinder {
             tiles.add(intArrayOf(l, t, w, h))
         }
 
-        if (tiles.isEmpty()) return tiles
+        if (tiles.isEmpty()) return Result(tiles, bg, 0)
         // 4) le tessere tagliate (dalla barra di navigazione o dal bordo del pannello) sono piu'
         //    piccole delle altre: si tengono solo quelle vicine alla dimensione mediana
         val median = tiles.map { max(it[2], it[3]) }.sorted().let { it[it.size / 2] }
         val whole = tiles.filter { min(it[2], it[3]) >= median * (1f - params.sizeTolerance) && max(it[2], it[3]) <= median * (1f + params.sizeTolerance) }
-        if (whole.isEmpty()) return whole
+        val cut = tiles.size - whole.size
+        if (whole.isEmpty()) return Result(whole, bg, cut)
         // 5) completamento: le tessere con l'interno chiaro si confondono con lo sfondo; la griglia
         //    e' regolare, quindi si provano le posizioni mancanti di ogni riga
         val completed = completeGrid(whole, mask, width, height, border, params)
         // 6) ordine di lettura: righe (tolleranza mezza tessera), poi da sinistra a destra
         val rowTolerance = completed.map { it[3] }.average() / 2
-        return completed.sortedWith(compareBy({ (it[1] / rowTolerance).roundToInt() }, { it[0] }))
+        val sorted = completed.sortedWith(compareBy({ (it[1] / rowTolerance).roundToInt() }, { it[0] }))
+        return Result(sorted, bg, cut)
     }
 
     /** Inserisce le posizioni di griglia mancanti che contengono abbastanza contenuto non-sfondo. */

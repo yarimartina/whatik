@@ -228,6 +228,10 @@
         <item quantity="other">%d stickers in the panel: recording</item>
     </plurals>
     <string name="capture_no_grid">No sticker grid found: capturing whatever moves</string>
+    <plurals name="capture_cut_tiles">
+        <item quantity="one">%d sticker cut off by the edge, skipped: scroll the panel and repeat</item>
+        <item quantity="other">%d stickers cut off by the edge, skipped: scroll the panel and repeat</item>
+    </plurals>
     <string name="capture_kind_animated">animated</string>
     <string name="capture_kind_static">still</string>
     <string name="capture_notification_progress">%1$s · session total: %2$d</string>

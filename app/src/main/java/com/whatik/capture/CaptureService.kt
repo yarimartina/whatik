@@ -38,6 +38,7 @@ import com.whatik.image.CropSpec
 import com.whatik.image.StickerDetector
 import com.whatik.image.StickerRefiner
 import com.whatik.image.TileGridFinder
+import com.whatik.image.BackgroundRemovingFrameProducer
 import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -86,6 +87,8 @@ class CaptureService : Service() {
     private var sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
     /** Tessere della griglia (in pixel del fotogramma catturato) per la modalita' "tutti"; vuoto = cattura libera. */
     private var gridTiles: List<android.graphics.Rect> = emptyList()
+    /** Colore di sfondo del pannello (RGB) stimato con la griglia: serve a togliere i bordi attorno agli sticker. */
+    private var gridBackground: Int? = null
     /** Richiesta di un singolo fotogramma (per riconoscere la griglia prima di registrare). */
     @Volatile private var snapshotRequest: ((Bitmap) -> Unit)? = null
 
@@ -311,15 +314,19 @@ class CaptureService : Service() {
             mainHandler.post { bubble?.setVisible(false) }
             snapshotRequest = { frame ->
                 scope.launch {
-                    val tiles = runCatching { findTiles(frame) }.getOrDefault(emptyList())
+                    val scan = runCatching { findTiles(frame) }.getOrNull()
                     frame.recycle()
                     withContext(Dispatchers.Main) {
-                        if (tiles.isEmpty()) {
+                        if (scan == null || scan.tiles.isEmpty()) {
                             Toast.makeText(this@CaptureService, R.string.capture_no_grid, Toast.LENGTH_SHORT).show()
                             beginCapture(null)
                         } else {
-                            status.value = resources.getQuantityString(R.plurals.capture_status_grid_found, tiles.size, tiles.size)
-                            beginCapture(null, tiles)
+                            status.value = resources.getQuantityString(R.plurals.capture_status_grid_found, scan.tiles.size, scan.tiles.size)
+                            if (scan.cutTiles > 0) {
+                                Toast.makeText(this@CaptureService, resources.getQuantityString(R.plurals.capture_cut_tiles, scan.cutTiles, scan.cutTiles), Toast.LENGTH_LONG).show()
+                            }
+                            gridBackground = scan.background
+                            beginCapture(null, scan.tiles)
                         }
                     }
                 }
@@ -337,8 +344,10 @@ class CaptureService : Service() {
         }, 300)
     }
 
+    private class GridScan(val tiles: List<android.graphics.Rect>, val background: Int, val cutTiles: Int)
+
     /** Tessere del pannello in pixel del fotogramma catturato, a partire da una copia ridotta. */
-    private fun findTiles(frame: Bitmap): List<android.graphics.Rect> {
+    private fun findTiles(frame: Bitmap): GridScan {
         val aw = 480
         val ah = (frame.height.toFloat() * aw / frame.width).toInt().coerceAtLeast(8)
         val small = Bitmap.createScaledBitmap(frame, aw, ah, true)
@@ -347,9 +356,11 @@ class CaptureService : Service() {
         small.recycle()
         val sx = frame.width.toFloat() / aw
         val sy = frame.height.toFloat() / ah
-        return TileGridFinder.find(rgb, aw, ah).map { (l, t, w, h) ->
+        val result = TileGridFinder.analyze(rgb, aw, ah)
+        val tiles = result.tiles.map { (l, t, w, h) ->
             android.graphics.Rect((l * sx).toInt(), (t * sy).toInt(), ((l + w) * sx).toInt(), ((t + h) * sy).toInt())
         }
+        return GridScan(tiles, result.background, result.cutTiles)
     }
 
     private fun beginCapture(point: IntArray?, tiles: List<android.graphics.Rect> = emptyList()) {
@@ -521,7 +532,7 @@ class CaptureService : Service() {
                 val crops = proposals.mapNotNull { p -> refined(p, null)?.let { crop -> Triple(crop, p.startMs, p.endMs) } }
                 for ((i, entry) in crops.withIndex()) {
                     val (crop, startMs, endMs) = entry
-                    val converted = StickerConverter.convert(captured.producer(crop, startMs, endMs), forceStatic = false)
+                    val converted = StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, startMs, endMs)), forceStatic = false)
                     store(converted.bytes, if (crops.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp")
                 }
                 found = crops.size
@@ -536,12 +547,12 @@ class CaptureService : Service() {
                 val seed = intArrayOf(point[0] * fw / captured.width, point[1] * fh / captured.height)
                 val hitCrop = hit?.let { refined(it, seed) ?: it.crop }
                 if (hit != null && hitCrop != null) {
-                    val converted = StickerConverter.convert(captured.producer(hitCrop, hit.startMs, hit.endMs), forceStatic = false)
+                    val converted = StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(hitCrop, hit.startMs, hit.endMs)), forceStatic = false)
                     store(converted.bytes, "TikTok $stamp")
                     animated = true
                 } else {
                     val crop = captured.staticCropAround(point[0], point[1])
-                    val converted = StickerConverter.convert(captured.producer(crop, times.first(), times.first()), forceStatic = true)
+                    val converted = StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, times.first(), times.first())), forceStatic = true)
                     store(converted.bytes, "TikTok $stamp")
                 }
                 found = 1
@@ -605,9 +616,9 @@ class CaptureService : Service() {
                     local.contains(l + w / 2, t + h / 2)
                 }
                 val converted = if (hit != null) {
-                    StickerConverter.convert(captured.producer(crop, hit.startMs, hit.endMs), forceStatic = false)
+                    StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, hit.startMs, hit.endMs), gridBackground), forceStatic = false)
                 } else {
-                    StickerConverter.convert(captured.producer(crop, times.first(), times.first()), forceStatic = true)
+                    StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, times.first(), times.first()), gridBackground), forceStatic = true)
                 }
                 if (converted.animated) anyAnimated = true
                 val name = if (tiles.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp"
