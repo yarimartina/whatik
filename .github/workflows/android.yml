@@ -5,7 +5,8 @@ name: Android
 # https://github.com/<owner>/<repo>/releases/latest/download/whatik-debug.apk
 on:
   push:
-    branches: ["**"]
+    # il branch "ios" ha la sua pipeline (ios.yml) e non deve sovrascrivere la release dell'APK
+    branches-ignore: ["ios"]
     tags: ["v*"]
   workflow_dispatch:
 

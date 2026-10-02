@@ -1,0 +1,7 @@
+# generati da XcodeGen e dalle build
+Whatik.xcodeproj/
+Whatik/Info.plist
+build/
+dist/
+WhatikCore/.build/
+WhatikCore/.swiftpm/

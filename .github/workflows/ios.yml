@@ -1,0 +1,94 @@
+name: iOS
+
+# A ogni push che tocca ios/: test del nucleo, compilazione dell'app per iPhone (senza firma)
+# e per il simulatore, pubblicazione nella release "ios-latest". Link fissi:
+#   https://github.com/<owner>/<repo>/releases/download/ios-latest/Whatik.ipa
+#   https://github.com/<owner>/<repo>/releases/download/ios-latest/Whatik-simulator.zip
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versioni degli strumenti
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Genera il progetto Xcode
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Compila per iPhone (senza firma)
+        working-directory: ios
+        run: |
+          xcodebuild -project Whatik.xcodeproj -scheme Whatik -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            -quiet build
+
+      - name: Test del nucleo (detector, griglia, sfondo, WebP, pack)
+        working-directory: ios/WhatikCore
+        run: swift test
+
+      - name: Compila per il simulatore
+        working-directory: ios
+        run: |
+          xcodebuild -project Whatik.xcodeproj -scheme Whatik -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            -quiet build
+
+      - name: Prepara IPA e app per simulatore
+        working-directory: ios
+        run: |
+          rm -rf dist && mkdir -p dist/Payload
+          cp -R build/Build/Products/Release-iphoneos/Whatik.app dist/Payload/
+          (cd dist && zip -qry Whatik.ipa Payload && rm -rf Payload)
+          (cd build/Build/Products/Release-iphonesimulator && zip -qry ../../../../dist/Whatik-simulator.zip Whatik.app)
+          ls -la dist
+
+      - name: Carica gli artefatti
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatik-ios
+          path: |
+            ios/dist/Whatik.ipa
+            ios/dist/Whatik-simulator.zip
+
+      - name: Pubblica nella release "ios-latest"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-latest --yes --cleanup-tag || true
+          git push --delete origin ios-latest || true
+          cat > notes.md <<NOTES
+          Build automatica n. ${{ github.run_number }} dal commit ${GITHUB_SHA} (branch ${GITHUB_REF_NAME}).
+
+          **Whatik.ipa** non è firmata: si installa su iPhone con Sideloadly o AltStore usando il proprio Apple ID (con un account gratuito l'app va reinstallata ogni 7 giorni). Istruzioni in ios/README.md.
+
+          **Whatik-simulator.zip** contiene l'app per il simulatore di Xcode o per un servizio come Appetize.io, per provarla senza iPhone.
+          NOTES
+          gh release create ios-latest ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "iOS: ultima build (#${{ github.run_number }})" \
+            --notes-file notes.md

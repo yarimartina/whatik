@@ -1,5 +1,7 @@
 # Whatik
 
+> La versione per iPhone è nella cartella [`ios/`](ios/README.md) (branch `ios`); lo stato del progetto è in [`docs/STATO-PROGETTO.md`](docs/STATO-PROGETTO.md).
+
 App Android che prende gli sticker di TikTok, li converte nel formato richiesto da WhatsApp e li aggiunge a WhatsApp come pack di sticker. Si può copiare uno sticker alla volta oppure selezionarne tanti in massa.
 
 ## Come funziona
