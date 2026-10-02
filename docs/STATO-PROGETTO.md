@@ -66,7 +66,7 @@ Il percorso di uno sticker catturato con "Tutti":
 
 ## Da riorganizzare
 
-- **Branch**: tutto il lavoro sta su `ccr-9919d90b-bs5jr4`; manca un `main` stabile su cui fare pull request.
+- **Branch**: fatto. Albero `main` / `android/main` / `ios/main` con rami `fix` e `feature` per piattaforma, descritto in `docs/BRANCH.md`. Resta da impostare `main` come branch predefinito su GitHub.
 - **`CaptureService.kt` (767 righe)**: fa proiezione, overlay, cattura, analisi ed esportazione. Va diviso in sessione di cattura, overlay ed elaborazione, e le due pipeline "Punta" e "Tutti" hanno codice simile da unificare.
 - **`MainViewModel.kt` (964 righe)**: un view model per schermata.
 - **Materiale di prova**: registrazioni e screenshot reali usati per tarare le soglie non sono nel repository. Vanno aggiunti come fixture con test di regressione.
@@ -76,7 +76,7 @@ Il percorso di uno sticker catturato con "Tutti":
 - **README**: la descrizione della cattura è un unico paragrafo molto lungo; va spezzata in una guida d'uso e una parte tecnica.
 - **Nessun test strumentale o di interfaccia**: overlay e servizio di cattura sono provati solo a mano.
 
-## Versione iOS (branch `ios`)
+## Versione iOS (branch `ios/main`)
 
 iOS non permette a un'app di disegnare sopra le altre né di registrare lo schermo in modo
 continuo mentre si usa TikTok. Cambia quindi il modo di catturare, mentre il resto si porta.

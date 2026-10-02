@@ -1,6 +1,14 @@
 # Whatik
 
-> La versione per iPhone è nella cartella [`ios/`](ios/README.md) (branch `ios`); lo stato del progetto è in [`docs/STATO-PROGETTO.md`](docs/STATO-PROGETTO.md).
+| | Android | iPhone |
+| --- | --- | --- |
+| Codice | `app/` | `ios/` |
+| Branch stabile | `android/main` | `ios/main` |
+| Download | [whatik-debug.apk](https://github.com/yarimartina/whatik/releases/latest/download/whatik-debug.apk) | [Whatik.ipa](https://github.com/yarimartina/whatik/releases/download/ios-latest/Whatik.ipa) |
+| Guida | questa pagina | [docs/GUIDA-IOS.md](docs/GUIDA-IOS.md) |
+
+Organizzazione dei branch e correzione dei bug: [docs/BRANCH.md](docs/BRANCH.md). Stato del progetto e
+cose da riorganizzare: [docs/STATO-PROGETTO.md](docs/STATO-PROGETTO.md).
 
 App Android che prende gli sticker di TikTok, li converte nel formato richiesto da WhatsApp e li aggiunge a WhatsApp come pack di sticker. Si può copiare uno sticker alla volta oppure selezionarne tanti in massa.
 
@@ -29,7 +37,7 @@ Poi:
 
 ## Scaricare l'APK
 
-A ogni push GitHub Actions esegue i test, compila l'app e aggiorna la release **latest**. Il link all'ultima build è sempre lo stesso:
+A ogni push su `android/main` GitHub Actions esegue i test, compila l'app e aggiorna la release **latest**; sugli altri branch compila e testa senza toccare il link. Il link all'ultima build stabile è sempre lo stesso:
 
 **https://github.com/yarimartina/whatik/releases/latest/download/whatik-debug.apk**
 
@@ -38,7 +46,7 @@ Sul telefono basta aprire il file e consentire l'installazione da origini sconos
 - ogni build ha un `versionCode` crescente nel tempo (minuti dal 1° gennaio 2026, calcolato alla compilazione, anche per le build locali);
 - tutte le build sono firmate con la stessa chiave `app/keystore/whatik-sideload.jks`, inclusa nel repository. È una chiave pensata solo per il sideload di questo progetto (password nel `build.gradle.kts`): per una pubblicazione sul Play Store andrebbe creata una chiave privata separata, tenuta fuori dal repo.
 
-Un tag `v*` (es. `v1.0.0`) crea inoltre una release con quel numero di versione e l'APK allegato.
+Un tag `android-v*` (es. `android-v1.1.0`) crea inoltre una release con quel numero di versione e l'APK allegato.
 
 **Se un aggiornamento non si installa** ("app non installata", "pacchetto in conflitto"): la copia sul telefono è stata firmata con un'altra chiave. È il caso delle primissime build (APK inviato a mano, artefatto della run #1), firmate con chiavi temporanee. Disinstallala una volta e reinstalla dal link: da lì in poi gli aggiornamenti funzionano. La schermata *Informazioni* nell'app mostra versione e impronta della firma installata; quella della chiave del repository inizia con `42:5D:1E:18`.
 

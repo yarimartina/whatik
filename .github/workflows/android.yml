@@ -1,20 +1,24 @@
 name: Android
 
-# A ogni push su qualunque branch: test, compilazione e pubblicazione automatica dell'APK
-# nella release "latest", raggiungibile dal link fisso
+# Albero dei branch in docs/BRANCH.md. Su main e su android/** la CI esegue i test e compila
+# l'APK; solo android/main aggiorna la release "latest" e quindi il link fisso
 # https://github.com/<owner>/<repo>/releases/latest/download/whatik-debug.apk
+# Un tag android-v* crea una release con quel numero di versione.
 on:
   push:
-    # il branch "ios" ha la sua pipeline (ios.yml) e non deve sovrascrivere la release dell'APK
-    branches-ignore: ["ios"]
-    tags: ["v*"]
+    branches: ["main", "android/**"]
+    tags: ["android-v*"]
+    # le modifiche solo all'app iPhone non ricompilano Android
+    paths-ignore:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-build
+  group: android-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -58,9 +62,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      # Release "latest" ricreata a ogni push: il link di download resta sempre lo stesso.
+      # Release "latest" ricreata a ogni push su android/main: il link di download resta lo stesso.
       - name: Aggiorna la release "latest"
-        if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/android/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -74,9 +78,9 @@ jobs:
 
           Link fisso all'APK: https://github.com/${{ github.repository }}/releases/latest/download/whatik-debug.apk"
 
-      # Su un tag "v*" l'APK finisce in una release con quel numero di versione.
+      # Su un tag "android-v*" l'APK finisce in una release con quel numero di versione.
       - name: Allega l'APK alla release del tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/android-v')
         uses: softprops/action-gh-release@v2
         with:
           files: whatik-debug.apk
