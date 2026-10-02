@@ -176,6 +176,72 @@ public final class BackgroundRemovingSource: FrameSource {
     }
 }
 
+/// Pulisce lo sticker preso dal pannello con `StickerCleaner`: bande del pannello tagliate,
+/// angoli arrotondati trasparenti, sfondo trasparente solo per un soggetto unico. Il piano si
+/// decide sul primo fotogramma; il riquadro è l'unione su tutti, così lo sticker non salta.
+public final class StickerCleaningSource: FrameSource {
+    private let inner: FrameSource
+    private let hint: ARGB?
+    private let params: StickerCleaner.Params
+    private var prepared = false
+    private var background: ARGB?
+    private var plan: StickerCleaner.Plan?
+    private var trim: [Int]?
+
+    /// `backgroundHint`: colore del pannello misurato su un'area grande (preciso); nil = stimato dal bordo.
+    public init(_ inner: FrameSource, backgroundHint: ARGB? = nil, params: StickerCleaner.Params = .init()) {
+        self.inner = inner
+        self.hint = backgroundHint
+        self.params = params
+    }
+
+    public var width: Int { prepareQuietly(); return trim?[2] ?? inner.width }
+    public var height: Int { prepareQuietly(); return trim?[3] ?? inner.height }
+    public var durationsMs: [Int] { inner.durationsMs }
+
+    private func prepareQuietly() { try? prepare() }
+
+    private func prepare() throws {
+        if prepared { return }
+        prepared = true
+        var bg: ARGB?
+        var chosen: StickerCleaner.Plan?
+        var unionBox: [Int]?
+        var frameW = 0, frameH = 0
+        try inner.produce { i, frame in
+            var px = frame.pixels
+            if i == 0 {
+                frameW = frame.width; frameH = frame.height
+                bg = hint.map { $0 & 0xFFFFFF } ?? BackgroundRemover.resolveBackground(px, width: frameW, height: frameH, hint: nil)
+                chosen = bg.flatMap { StickerCleaner.plan(px, width: frameW, height: frameH, background: $0, params: params) }
+            }
+            guard let b = bg, let p = chosen, frame.width == frameW, frame.height == frameH else { return false }
+            let box = StickerCleaner.apply(&px, width: frameW, height: frameH, background: b, plan: p, params: params)
+            unionBox = unionBox.map { BackgroundRemover.union($0, box) } ?? box
+            return true
+        }
+        guard let b = bg, let p = chosen, let u = unionBox, frameW > 0 else { return }
+        background = b
+        plan = p
+        trim = u
+    }
+
+    public func produce(_ consume: (Int, Raster) throws -> Bool) throws {
+        try prepare()
+        guard let bg = background, let p = plan, let t = trim else {
+            try inner.produce(consume)
+            return
+        }
+        try inner.produce { i, frame in
+            var px = frame.pixels
+            StickerCleaner.apply(&px, width: frame.width, height: frame.height, background: bg, plan: p, params: params)
+            let cleaned = Raster(width: frame.width, height: frame.height, pixels: px)
+            let l = t[0].clamped(0, frame.width - 1), top = t[1].clamped(0, frame.height - 1)
+            return try consume(i, cleaned.cropped(left: l, top: top, width: t[2].clamped(1, frame.width - l), height: t[3].clamped(1, frame.height - top)))
+        }
+    }
+}
+
 /// Tiene in memoria i fotogrammi di una sorgente costosa (un video), letti una sola volta:
 /// conversione e rimozione dello sfondo li ripercorrono più volte.
 public final class CachedSource: FrameSource {

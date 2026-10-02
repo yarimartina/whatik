@@ -30,11 +30,19 @@ public enum TileGridFinder {
 
     public static func analyze(_ rgb: [ARGB], width: Int, height: Int, params: Params = Params()) -> Result {
         // 1) sfondo del pannello: colore più frequente nella parte bassa del fotogramma
-        var counts: [Int: Int] = [:]
+        // (media dei pixel del gruppo più frequente: serve preciso per togliere le bande)
+        var counts: [Int: [Int]] = [:]
         let fromY = roundInt(Float(height) * (1 - params.panelFraction)).clamped(0, height - 1)
-        for y in fromY..<height { for x in 0..<width { counts[PixelMath.quantize(rgb[y * width + x]), default: 0] += 1 } }
-        guard let bgQ = counts.max(by: { $0.value < $1.value })?.key else { return Result(tiles: [], background: 0xFFFFFF, cutTiles: 0) }
-        let bg = PixelMath.dequantize(bgQ)
+        for y in fromY..<height {
+            for x in 0..<width {
+                let c = rgb[y * width + x]
+                counts[PixelMath.quantize(c), default: [0, 0, 0, 0]].withUnsafeMutableBufferPointer { a in
+                    a[0] += 1; a[1] += red(c); a[2] += green(c); a[3] += blue(c)
+                }
+            }
+        }
+        guard let mode = counts.values.max(by: { $0[0] < $1[0] }) else { return Result(tiles: [], background: 0xFFFFFF, cutTiles: 0) }
+        let bg = argb(0, mode[1] / mode[0], mode[2] / mode[0], mode[3] / mode[0])
 
         // 2) maschera dei pixel non sfondo, con una leggera dilatazione
         var mask = [Bool](repeating: false, count: width * height)

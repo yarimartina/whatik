@@ -223,6 +223,7 @@
     <string name="lock_label">Whatik sta registrando: schermo bloccato</string>
     <string name="lock_processing">Sticker %1$d di %2$d</string>
     <string name="capture_status_grid_search">Cerco le tessere del pannello…</string>
+    <string name="capture_status_point_search">Cerco lo sticker toccato…</string>
     <plurals name="capture_status_grid_found">
         <item quantity="one">%d sticker nel pannello: registro</item>
         <item quantity="other">%d sticker nel pannello: registro</item>

@@ -38,6 +38,7 @@ import com.whatik.image.CropSpec
 import com.whatik.image.StickerDetector
 import com.whatik.image.StickerRefiner
 import com.whatik.image.TileGridFinder
+import com.whatik.image.StickerLocator
 import com.whatik.image.BackgroundRemovingFrameProducer
 import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
@@ -89,6 +90,9 @@ class CaptureService : Service() {
     private var gridTiles: List<android.graphics.Rect> = emptyList()
     /** Colore di sfondo del pannello (RGB) stimato con la griglia: serve a togliere i bordi attorno agli sticker. */
     private var gridBackground: Int? = null
+    /** Sticker toccato con "Punta", in pixel della zona registrata, e colore dello sfondo attorno. */
+    private var focusInZone: android.graphics.Rect? = null
+    private var focusBackground: Int? = null
     /** Richiesta di un singolo fotogramma (per riconoscere la griglia prima di registrare). */
     @Volatile private var snapshotRequest: ((Bitmap) -> Unit)? = null
 
@@ -286,7 +290,7 @@ class CaptureService : Service() {
                 dismissAim()
                 val px = (x * captureWidth / screenWidth).toInt().coerceIn(0, captureWidth - 1)
                 val py = (y * captureHeight / screenHeight).toInt().coerceIn(0, captureHeight - 1)
-                beginCapture(intArrayOf(px, py))
+                beginPointCapture(px, py)
             },
             onCancel = { dismissAim() },
         ).also { it.show() }
@@ -299,6 +303,52 @@ class CaptureService : Service() {
     }
 
     // ------------------------------------------------------------ cattura
+
+    private class PointFocus(val rect: android.graphics.Rect, val background: Int?)
+
+    /**
+     * "Punta": fotografa lo schermo, trova i bordi dello sticker toccato (tessera del pannello o
+     * sticker fermo su sfondo uniforme) e lo evidenzia durante la registrazione; il ritaglio
+     * finale è esattamente quello sticker. Se non si riconosce nulla resta la zona attorno al punto.
+     */
+    private fun beginPointCapture(px: Int, py: Int) {
+        if (capturing) return
+        status.value = getString(R.string.capture_status_point_search)
+        // il mirino deve sparire dallo schermo prima della fotografia
+        handler.postDelayed({
+            mainHandler.post { bubble?.setVisible(false) }
+            snapshotRequest = { frame ->
+                scope.launch {
+                    val focus = runCatching { locateSticker(frame, px, py) }.getOrNull()
+                    frame.recycle()
+                    withContext(Dispatchers.Main) { beginCapture(intArrayOf(px, py), focus = focus) }
+                }
+            }
+            // schermo immobile e nessun fotogramma: si registra la zona attorno al punto
+            handler.postDelayed({
+                if (snapshotRequest != null) {
+                    snapshotRequest = null
+                    mainHandler.post { beginCapture(intArrayOf(px, py)) }
+                }
+            }, 2000)
+        }, 300)
+    }
+
+    /** Bordi dello sticker toccato in pixel del fotogramma catturato, a partire da una copia ridotta. */
+    private fun locateSticker(frame: Bitmap, px: Int, py: Int): PointFocus? {
+        val aw = 480
+        val ah = (frame.height.toFloat() * aw / frame.width).toInt().coerceAtLeast(8)
+        val small = Bitmap.createScaledBitmap(frame, aw, ah, true)
+        val rgb = IntArray(aw * ah)
+        small.getPixels(rgb, 0, aw, 0, 0, aw, ah)
+        small.recycle()
+        val sx = frame.width.toFloat() / aw
+        val sy = frame.height.toFloat() / ah
+        val found = StickerLocator.locate(rgb, aw, ah, (px / sx).toInt(), (py / sy).toInt()) ?: return null
+        val (l, t, w, h) = found.box
+        val rect = android.graphics.Rect((l * sx).toInt(), (t * sy).toInt(), ((l + w) * sx).toInt(), ((t + h) * sy).toInt())
+        return PointFocus(rect, found.background)
+    }
 
     /**
      * "Tutti": fotografa lo schermo, riconosce le tessere del pannello sticker e registra solo
@@ -363,7 +413,7 @@ class CaptureService : Service() {
         return GridScan(tiles, result.background, result.cutTiles)
     }
 
-    private fun beginCapture(point: IntArray?, tiles: List<android.graphics.Rect> = emptyList()) {
+    private fun beginCapture(point: IntArray?, tiles: List<android.graphics.Rect> = emptyList(), focus: PointFocus? = null) {
         if (capturing) return
         val dir = File(cacheDir, "capture/${System.currentTimeMillis()}").apply { mkdirs() }
         sessionDir = dir
@@ -373,11 +423,21 @@ class CaptureService : Service() {
         if (point != null) {
             // zona inquadrata attorno al punto: i fotogrammi vengono ritagliati qui, cosi' si puo'
             // campionare piu' spesso (sticker fluidi) e tutto cio' che si disegna fuori non entra
-            val side = (captureWidth * ZONE_FRACTION).toInt().coerceAtMost(minOf(captureWidth, captureHeight))
-            val zl = (point[0] - side / 2).coerceIn(0, captureWidth - side)
-            val zt = (point[1] - side / 2).coerceIn(0, captureHeight - side)
+            // con lo sticker riconosciuto la zona si centra su di lui e lo contiene per intero
+            val f = focus?.rect
+            var side = (captureWidth * ZONE_FRACTION).toInt()
+            if (f != null) side = maxOf(side, (maxOf(f.width(), f.height()) * 1.4f).toInt())
+            side = side.coerceAtMost(minOf(captureWidth, captureHeight))
+            val cx = f?.centerX() ?: point[0]
+            val cy = f?.centerY() ?: point[1]
+            val zl = (cx - side / 2).coerceIn(0, captureWidth - side)
+            val zt = (cy - side / 2).coerceIn(0, captureHeight - side)
             zone = android.graphics.Rect(zl, zt, zl + side, zt + side)
             pointOfInterest = intArrayOf(point[0] - zl, point[1] - zt)
+            focusInZone = f?.let {
+                android.graphics.Rect(it.left - zl, it.top - zt, it.right - zl, it.bottom - zt).apply { intersect(0, 0, side, side) }
+            }
+            focusBackground = focus?.background
             sampleIntervalMs = 1000L / CAPTURE_FPS_POINT
         } else if (tiles.isNotEmpty()) {
             // griglia: si registra solo l'area delle tessere (con un margine), a frequenza piu' alta
@@ -389,11 +449,13 @@ class CaptureService : Service() {
             zone = union
             gridTiles = tiles
             pointOfInterest = null
+            focusInZone = null
             sampleIntervalMs = 1000L / CAPTURE_FPS_GRID
         } else {
             zone = null
             gridTiles = emptyList()
             pointOfInterest = null
+            focusInZone = null
             sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
         }
         if (point != null) gridTiles = emptyList()
@@ -410,8 +472,14 @@ class CaptureService : Service() {
                 r.right * screenWidth / captureWidth, r.bottom * screenHeight / captureHeight,
             )
         }
+        val screenFocus = focus?.rect?.let { r ->
+            android.graphics.Rect(
+                r.left * screenWidth / captureWidth, r.top * screenHeight / captureHeight,
+                r.right * screenWidth / captureWidth, r.bottom * screenHeight / captureHeight,
+            )
+        }
         runCatching { lock?.hide() }
-        lock = CaptureLockOverlay(this, screenZone, captureDurationMs, screenTiles).also { it.show() }
+        lock = CaptureLockOverlay(this, screenZone, captureDurationMs, screenTiles, screenFocus).also { it.show() }
         status.value = getString(R.string.capture_status_recording)
         // breve attesa perché mirino e bolla spariscano dallo schermo prima del primo fotogramma
         handler.postDelayed({
@@ -472,6 +540,8 @@ class CaptureService : Service() {
         val files = ArrayList(frameFiles)
         val times = ArrayList(frameTimes)
         val point = pointOfInterest
+        val focus = focusInZone
+        val background = focusBackground
         val tiles = gridTiles
         val zoneRect = zone
         mainHandler.post {
@@ -488,11 +558,14 @@ class CaptureService : Service() {
         if (tiles.isNotEmpty() && zoneRect != null) {
             scope.launch { processGrid(files, times, tiles, zoneRect) }
         } else {
-            scope.launch { process(files, times, point) }
+            scope.launch { process(files, times, point, focus, background) }
         }
     }
 
-    private suspend fun process(files: List<File>, times: List<Long>, point: IntArray?) {
+    private suspend fun process(
+        files: List<File>, times: List<Long>, point: IntArray?,
+        focus: android.graphics.Rect? = null, background: Int? = null,
+    ) {
         val library = (application as WhatikApp).library
         val result = runCatching {
             if (files.isEmpty()) throw StickerConverter.ConversionException(getString(R.string.capture_too_few_frames))
@@ -537,6 +610,23 @@ class CaptureService : Service() {
                 }
                 found = crops.size
                 animated = crops.isNotEmpty()
+            } else if (focus != null && !focus.isEmpty) {
+                // punta e cattura con lo sticker riconosciuto: si ritaglia esattamente lui; è animato
+                // se dentro c'è un loop, altrimenti fermo
+                val crop = CropSpec.fromPixels(focus.left, focus.top, focus.width(), focus.height(), captured.width, captured.height)
+                val sx = captured.width.toFloat() / dims.first
+                val sy = captured.height.toFloat() / dims.second
+                val hit = proposals.firstOrNull { p ->
+                    focus.contains(((p.box[0] + p.box[2] / 2f) * sx).toInt(), ((p.box[1] + p.box[3] / 2f) * sy).toInt())
+                }
+                val converted = if (hit != null) {
+                    StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, hit.startMs, hit.endMs), background), forceStatic = false)
+                } else {
+                    StickerConverter.convert(BackgroundRemovingFrameProducer(captured.producer(crop, times.first(), times.first()), background), forceStatic = true)
+                }
+                store(converted.bytes, "TikTok $stamp")
+                animated = hit != null
+                found = 1
             } else {
                 // punta e cattura: una regione in movimento che contiene il punto, altrimenti uno sticker fermo
                 val hit = proposals.firstOrNull { p ->

@@ -20,6 +20,8 @@ link. Poi li converte nel formato di WhatsApp e gestisce i pack.
 | Cattura "Punta" | Tocco sullo sticker, zona inquadrata, schermo bloccato 8 s, 20 fps, animato o statico deciso dall'app | Provata: funziona bene |
 | Cattura "Tutti" | Riconosce le tessere del pannello, registra solo il pannello, elabora le tessere una alla volta con evidenziazione | Provata: 11 tessere trovate, 10 sticker nuovi |
 | Correzioni build 14-15 | Riquadri allineati sui telefoni con foro fotocamera, file tagliate saltate, sfondo bianco reso trasparente | Da confermare sul telefono |
+| Punta sullo sticker | Il tocco trova la tessera (o lo sticker fermo) e la evidenzia con una cornice ai suoi bordi; il ritaglio è esattamente quello sticker | Da confermare sul telefono |
+| Bordi del pannello | Bande del colore del pannello tagliate via; sfondo trasparente solo per un soggetto unico, un meme tiene il suo sfondo | Verificato sul ritaglio del meme segnalato; da confermare sul telefono |
 | Registrazione | Analisi automatica di un video registrato con il registratore di sistema | Validata su una registrazione reale |
 | Screenshot e editor | Ritaglio libero con maniglie (bordi, angoli, interno), pizzico, intervallo di tempo per gli animati | Funziona |
 | Link | URL diretto di un file o pagina da cui estrarre le immagini | Funziona sui file; le pagine TikTok spesso bloccano |
@@ -48,7 +50,7 @@ Il percorso di uno sticker catturato con "Tutti":
 1. La bolla chiede una fotografia dello schermo e `TileGridFinder` trova le tessere (sfondo del pannello, isole di contenuto, filtri di forma, completamento della griglia, tessere tagliate scartate).
 2. Si registra solo l'area delle tessere a 15 fps per 8 s, con lo schermo bloccato.
 3. `StickerDetector` trova le regioni in movimento e il periodo del loop. Per ogni tessera: se contiene un loop diventa animata con quei tempi, altrimenti statica.
-4. `BackgroundRemovingFrameProducer` rende trasparente lo sfondo della tessera e restringe il riquadro.
+4. `BackgroundRemovingFrameProducer` usa `StickerCleaner`: taglia le bande del colore del pannello, rende trasparenti gli angoli arrotondati e lo sfondo solo se lo sticker è un soggetto unico (un meme tiene il suo sfondo).
 5. `StickerConverter` produce il WebP e la libreria lo salva, scartando i doppioni.
 
 ## Validazione
