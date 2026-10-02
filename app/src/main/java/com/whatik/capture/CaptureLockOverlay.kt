@@ -28,11 +28,24 @@ class CaptureLockOverlay(
     /** Zona inquadrata in pixel dello schermo; null = tutto lo schermo. */
     private val zone: Rect?,
     private val durationMs: Long,
+    /** Tessere della griglia (pixel dello schermo), evidenziate una alla volta durante l'elaborazione. */
+    private val tiles: List<Rect> = emptyList(),
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val view = LockView()
     private var attached = false
     private var startedAt = 0L
+
+    /** Fase di elaborazione: indice della tessera corrente e testo; null = registrazione in corso. */
+    @Volatile private var currentTile: Int? = null
+    @Volatile private var phaseText: String? = null
+
+    /** Passa alla fase di elaborazione evidenziando la tessera [index] (va chiamato sul thread principale). */
+    fun showProcessing(index: Int, text: String) {
+        currentTile = index
+        phaseText = text
+        view.invalidate()
+    }
 
     private val params = WindowManager.LayoutParams(
         WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
@@ -62,6 +75,8 @@ class CaptureLockOverlay(
     private inner class LockView : View(context) {
         private val dim = Paint().apply { color = 0x99000000.toInt() }
         private val frame = Paint().apply { color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(3f) }
+        private val thin = Paint().apply { color = 0x88FFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = dp(1.5f) }
+        private val done = Paint().apply { color = 0x5522AA55; style = Paint.Style.FILL }
         private val edge = Paint().apply { color = 0xFFFE2C55.toInt(); style = Paint.Style.STROKE; strokeWidth = dp(4f) }
         private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE; textSize = dp(15f); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
@@ -89,6 +104,20 @@ class CaptureLockOverlay(
             val remaining = ((durationMs - elapsed) / 1000f).coerceAtLeast(0f)
             val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
             val z = zone
+            val current = currentTile
+            if (current != null) {
+                // elaborazione: tutte le tessere con cornice sottile, quella corrente in evidenza
+                canvas.drawRect(0f, 0f, w, h, dim)
+                tiles.forEachIndexed { i, tile ->
+                    val paint = if (i == current) frame else thin
+                    canvas.drawRoundRect(RectF(tile), dp(8f), dp(8f), paint)
+                    if (i < current) canvas.drawRoundRect(RectF(tile), dp(8f), dp(8f), done)
+                }
+                val anchor = tiles.getOrNull(current)
+                val textY = if (anchor != null && anchor.top > h * 0.2f) anchor.top - dp(14f) else (anchor?.bottom?.toFloat() ?: (h / 2)) + dp(28f)
+                canvas.drawText(phaseText ?: "", w / 2f, textY, text)
+                return
+            }
             if (z != null) {
                 // scurisce tutto fuori dalla zona (la zona resta pulita: e' quella che viene ritagliata)
                 canvas.drawRect(0f, 0f, w, z.top.toFloat(), dim)

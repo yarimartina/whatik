@@ -221,6 +221,13 @@
     <string name="radial_all">All</string>
     <string name="radial_end">End</string>
     <string name="lock_label">Whatik is recording: screen locked</string>
+    <string name="lock_processing">Sticker %1$d of %2$d</string>
+    <string name="capture_status_grid_search">Looking for the panel tiles…</string>
+    <plurals name="capture_status_grid_found">
+        <item quantity="one">%d sticker in the panel: recording</item>
+        <item quantity="other">%d stickers in the panel: recording</item>
+    </plurals>
+    <string name="capture_no_grid">No sticker grid found: capturing whatever moves</string>
     <string name="capture_kind_animated">animated</string>
     <string name="capture_kind_static">still</string>
     <string name="capture_notification_progress">%1$s · session total: %2$d</string>

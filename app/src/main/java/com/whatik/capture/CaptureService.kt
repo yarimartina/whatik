@@ -37,6 +37,7 @@ import com.whatik.image.StickerConverter
 import com.whatik.image.CropSpec
 import com.whatik.image.StickerDetector
 import com.whatik.image.StickerRefiner
+import com.whatik.image.TileGridFinder
 import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -83,6 +84,10 @@ class CaptureService : Service() {
     /** Zona inquadrata (in pixel del fotogramma catturato) a cui ritagliare i fotogrammi; null = tutto lo schermo. */
     private var zone: android.graphics.Rect? = null
     private var sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
+    /** Tessere della griglia (in pixel del fotogramma catturato) per la modalita' "tutti"; vuoto = cattura libera. */
+    private var gridTiles: List<android.graphics.Rect> = emptyList()
+    /** Richiesta di un singolo fotogramma (per riconoscere la griglia prima di registrare). */
+    @Volatile private var snapshotRequest: ((Bitmap) -> Unit)? = null
 
     @Volatile private var capturing = false
     private var captureStartedAt = 0L
@@ -252,7 +257,7 @@ class CaptureService : Service() {
                 },
                 RadialMenuOverlay.Item(R.drawable.ic_motion, getString(R.string.radial_all), 0xFF00897B.toInt()) {
                     dismissRadial()
-                    beginCapture(null)
+                    beginGridCapture()
                 },
                 RadialMenuOverlay.Item(R.drawable.ic_close, getString(R.string.radial_end), 0xFF616161.toInt()) {
                     dismissRadial()
@@ -292,7 +297,62 @@ class CaptureService : Service() {
 
     // ------------------------------------------------------------ cattura
 
-    private fun beginCapture(point: IntArray?) {
+    /**
+     * "Tutti": fotografa lo schermo, riconosce le tessere del pannello sticker e registra solo
+     * quell'area; poi ogni tessera viene elaborata (animata o ferma) una alla volta.
+     * Senza griglia riconoscibile si ripiega sulla cattura libera di cio' che si muove.
+     */
+    private fun beginGridCapture() {
+        if (capturing) return
+        status.value = getString(R.string.capture_status_grid_search)
+        // il menu deve sparire dallo schermo prima della fotografia; nascondere la bolla produce
+        // comunque un nuovo fotogramma anche se sullo schermo non si muove nulla
+        handler.postDelayed({
+            mainHandler.post { bubble?.setVisible(false) }
+            snapshotRequest = { frame ->
+                scope.launch {
+                    val tiles = runCatching { findTiles(frame) }.getOrDefault(emptyList())
+                    frame.recycle()
+                    withContext(Dispatchers.Main) {
+                        if (tiles.isEmpty()) {
+                            Toast.makeText(this@CaptureService, R.string.capture_no_grid, Toast.LENGTH_SHORT).show()
+                            beginCapture(null)
+                        } else {
+                            status.value = resources.getQuantityString(R.plurals.capture_status_grid_found, tiles.size, tiles.size)
+                            beginCapture(null, tiles)
+                        }
+                    }
+                }
+            }
+            // schermo immobile e nessun fotogramma: si ripiega sulla cattura libera
+            handler.postDelayed({
+                if (snapshotRequest != null) {
+                    snapshotRequest = null
+                    mainHandler.post {
+                        Toast.makeText(this@CaptureService, R.string.capture_no_grid, Toast.LENGTH_SHORT).show()
+                        beginCapture(null)
+                    }
+                }
+            }, 2000)
+        }, 300)
+    }
+
+    /** Tessere del pannello in pixel del fotogramma catturato, a partire da una copia ridotta. */
+    private fun findTiles(frame: Bitmap): List<android.graphics.Rect> {
+        val aw = 480
+        val ah = (frame.height.toFloat() * aw / frame.width).toInt().coerceAtLeast(8)
+        val small = Bitmap.createScaledBitmap(frame, aw, ah, true)
+        val rgb = IntArray(aw * ah)
+        small.getPixels(rgb, 0, aw, 0, 0, aw, ah)
+        small.recycle()
+        val sx = frame.width.toFloat() / aw
+        val sy = frame.height.toFloat() / ah
+        return TileGridFinder.find(rgb, aw, ah).map { (l, t, w, h) ->
+            android.graphics.Rect((l * sx).toInt(), (t * sy).toInt(), ((l + w) * sx).toInt(), ((t + h) * sy).toInt())
+        }
+    }
+
+    private fun beginCapture(point: IntArray?, tiles: List<android.graphics.Rect> = emptyList()) {
         if (capturing) return
         val dir = File(cacheDir, "capture/${System.currentTimeMillis()}").apply { mkdirs() }
         sessionDir = dir
@@ -308,11 +368,24 @@ class CaptureService : Service() {
             zone = android.graphics.Rect(zl, zt, zl + side, zt + side)
             pointOfInterest = intArrayOf(point[0] - zl, point[1] - zt)
             sampleIntervalMs = 1000L / CAPTURE_FPS_POINT
+        } else if (tiles.isNotEmpty()) {
+            // griglia: si registra solo l'area delle tessere (con un margine), a frequenza piu' alta
+            val union = android.graphics.Rect(tiles[0])
+            tiles.forEach { union.union(it) }
+            val margin = (captureWidth * 0.02f).toInt()
+            union.inset(-margin, -margin)
+            union.intersect(0, 0, captureWidth, captureHeight)
+            zone = union
+            gridTiles = tiles
+            pointOfInterest = null
+            sampleIntervalMs = 1000L / CAPTURE_FPS_GRID
         } else {
             zone = null
+            gridTiles = emptyList()
             pointOfInterest = null
             sampleIntervalMs = 1000L / CAPTURE_FPS_ALL
         }
+        if (point != null) gridTiles = emptyList()
         bubble?.setVisible(false) // la bolla non deve finire nei fotogrammi
         val screenZone = zone?.let { z ->
             android.graphics.Rect(
@@ -320,8 +393,14 @@ class CaptureService : Service() {
                 z.right * screenWidth / captureWidth, z.bottom * screenHeight / captureHeight,
             )
         }
+        val screenTiles = gridTiles.map { r ->
+            android.graphics.Rect(
+                r.left * screenWidth / captureWidth, r.top * screenHeight / captureHeight,
+                r.right * screenWidth / captureWidth, r.bottom * screenHeight / captureHeight,
+            )
+        }
         runCatching { lock?.hide() }
-        lock = CaptureLockOverlay(this, screenZone, captureDurationMs).also { it.show() }
+        lock = CaptureLockOverlay(this, screenZone, captureDurationMs, screenTiles).also { it.show() }
         status.value = getString(R.string.capture_status_recording)
         // breve attesa perché mirino e bolla spariscano dallo schermo prima del primo fotogramma
         handler.postDelayed({
@@ -336,6 +415,16 @@ class CaptureService : Service() {
     private fun onFrame(reader: ImageReader) {
         val image = reader.acquireLatestImage() ?: return
         try {
+            snapshotRequest?.let { request ->
+                snapshotRequest = null
+                val plane = image.planes[0]
+                val rowPadding = plane.rowStride - plane.pixelStride * image.width
+                val bitmap = Bitmap.createBitmap(image.width + rowPadding / plane.pixelStride, image.height, Bitmap.Config.ARGB_8888)
+                bitmap.copyPixelsFromBuffer(plane.buffer)
+                val snapshot = if (rowPadding > 0) Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height).also { bitmap.recycle() } else bitmap
+                request(snapshot)
+                return
+            }
             if (!capturing) return
             val now = SystemClock.elapsedRealtime()
             if (now - lastSampleAt < sampleIntervalMs) return
@@ -372,14 +461,24 @@ class CaptureService : Service() {
         val files = ArrayList(frameFiles)
         val times = ArrayList(frameTimes)
         val point = pointOfInterest
+        val tiles = gridTiles
+        val zoneRect = zone
         mainHandler.post {
-            runCatching { lock?.hide() }
-            lock = null
+            if (tiles.isEmpty()) {
+                runCatching { lock?.hide() }
+                lock = null
+            } else {
+                lock?.showProcessing(0, getString(R.string.lock_processing, 1, tiles.size))
+            }
             bubble?.setVisible(true)
             bubble?.setState(BubbleOverlay.State.PROCESSING, "…")
         }
         status.value = getString(R.string.capture_status_processing)
-        scope.launch { process(files, times, point) }
+        if (tiles.isNotEmpty() && zoneRect != null) {
+            scope.launch { processGrid(files, times, tiles, zoneRect) }
+        } else {
+            scope.launch { process(files, times, point) }
+        }
     }
 
     private suspend fun process(files: List<File>, times: List<Long>, point: IntArray?) {
@@ -478,6 +577,76 @@ class CaptureService : Service() {
         }
     }
 
+    /** Elabora le tessere una alla volta: animata se nella tessera c'e' un loop, altrimenti ferma. */
+    private suspend fun processGrid(files: List<File>, times: List<Long>, tiles: List<android.graphics.Rect>, zoneRect: android.graphics.Rect) {
+        val library = (application as WhatikApp).library
+        val stamp = SimpleDateFormat("HH.mm.ss", Locale.getDefault()).format(Date())
+        val items = ArrayList<StickerItem>()
+        var preview: Bitmap? = null
+        var anyAnimated = false
+        val failures = ArrayList<String>()
+        val captured = runCatching { CapturedFrames(files, times) }.getOrNull()
+        val proposals = if (captured != null && files.size >= MIN_FRAMES) runCatching {
+            val (grays, dims) = captured.grayFrames()
+            StickerDetector.detect(grays, dims.first, dims.second, times, StickerDetector.Params())
+        }.getOrDefault(emptyList()) else emptyList()
+
+        for ((i, tile) in tiles.withIndex()) {
+            withContext(Dispatchers.Main) { lock?.showProcessing(i, getString(R.string.lock_processing, i + 1, tiles.size)) }
+            if (captured == null) break
+            try {
+                // tessera in coordinate della zona registrata
+                val local = android.graphics.Rect(tile.left - zoneRect.left, tile.top - zoneRect.top, tile.right - zoneRect.left, tile.bottom - zoneRect.top)
+                local.intersect(0, 0, captured.width, captured.height)
+                val crop = CropSpec.fromPixels(local.left, local.top, local.width(), local.height(), captured.width, captured.height)
+                // un loop il cui centro cade nella tessera -> animata, con i tempi del loop
+                val hit = proposals.firstOrNull { p ->
+                    val (l, t, w, h) = p.crop.toPixels(captured.width, captured.height)
+                    local.contains(l + w / 2, t + h / 2)
+                }
+                val converted = if (hit != null) {
+                    StickerConverter.convert(captured.producer(crop, hit.startMs, hit.endMs), forceStatic = false)
+                } else {
+                    StickerConverter.convert(captured.producer(crop, times.first(), times.first()), forceStatic = true)
+                }
+                if (converted.animated) anyAnimated = true
+                val name = if (tiles.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp"
+                val item = when (val r = library.importBytes(converted.bytes, name, "capture")) {
+                    is StickerLibrary.ImportResult.Added -> r.item
+                    is StickerLibrary.ImportResult.Duplicate -> r.item
+                    is StickerLibrary.ImportResult.Failed -> null
+                }
+                if (item != null) {
+                    items.add(item)
+                    if (preview == null) preview = firstFrame(converted.bytes)
+                    withContext(Dispatchers.Main) { bubble?.setState(BubbleOverlay.State.RESULT, "+${items.size}") }
+                }
+            } catch (e: Exception) {
+                failures.add("${i + 1}: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+        files.forEach { it.delete() }
+        withContext(Dispatchers.Main) {
+            runCatching { lock?.hide() }
+            lock = null
+            val created = items.size
+            sessionCount.value += created
+            createdIds.value = createdIds.value + items.map { it.id }
+            val total = sessionCount.value
+            val text = if (created > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created)
+            else getString(R.string.capture_status_none)
+            status.value = text
+            updateNotification(getString(R.string.capture_notification_progress, text, total))
+            if (created > 0) {
+                Toast.makeText(this@CaptureService, text, Toast.LENGTH_SHORT).show()
+                notifyResult(CaptureOutcome(items, tiles.size, preview, anyAnimated))
+                mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.toString()) }, 2500)
+            } else {
+                bubble?.setState(BubbleOverlay.State.IDLE, if (total > 0) total.toString() else null)
+            }
+        }
+    }
+
     private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?, val animated: Boolean)
 
     /** Primo fotogramma dello sticker convertito, per l'anteprima nella notifica. */
@@ -555,6 +724,7 @@ class CaptureService : Service() {
         const val CAPTURE_MS = 8000L
         const val CAPTURE_FPS_ALL = 10
         const val CAPTURE_FPS_POINT = 20
+        const val CAPTURE_FPS_GRID = 15
         /** Lato della zona inquadrata in "punta e cattura", come frazione della larghezza. */
         const val ZONE_FRACTION = 0.7f
         private const val MIN_FRAMES = 6
