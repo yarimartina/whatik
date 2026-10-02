@@ -36,6 +36,7 @@ final class AppModel: ObservableObject {
         store = PackStore(root: base.appendingPathComponent("packs", isDirectory: true))
         operations = PackOperations(library: library, store: store, open: MediaDecoder.open)
         refresh()
+        DemoMode.start(self)
     }
 
     func refresh() {

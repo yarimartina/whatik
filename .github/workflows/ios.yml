@@ -50,6 +50,34 @@ jobs:
         working-directory: ios/WhatikCore
         run: swift test
 
+      - name: Avvia un simulatore iPhone
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          devices = json.load(sys.stdin)["devices"]
+          def version(runtime):
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          for runtime in sorted(devices, key=version, reverse=True):
+              phones = [d for d in devices[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              preferred = [d for d in phones if d["name"] in ("iPhone 16", "iPhone 15", "iPhone 16 Pro")] or phones
+              if preferred:
+                  print(preferred[0]["udid"]); break
+          ')
+          echo "Simulatore: $UDID"
+          test -n "$UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Test dell'app nel simulatore (ImageIO, AVFoundation, registrazione sintetica)
+        working-directory: ios
+        run: |
+          xcodebuild test -project Whatik.xcodeproj -scheme Whatik \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build-test \
+            CODE_SIGNING_ALLOWED=NO -quiet
+
       - name: Compila per il simulatore
         working-directory: ios
         run: |
@@ -57,6 +85,28 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet build
+
+      - name: Schermate dell'app nel simulatore
+        working-directory: ios
+        run: |
+          UDID=${{ steps.sim.outputs.udid }}
+          mkdir -p dist/screens
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" build/Build/Products/Release-iphonesimulator/Whatik.app
+          shot() {
+            xcrun simctl terminate "$UDID" com.whatik.app >/dev/null 2>&1 || true
+            xcrun simctl launch "$UDID" com.whatik.app -WhatikDemo "$2" -WhatikTab "$3"
+            sleep "$4"
+            xcrun simctl io "$UDID" screenshot "dist/screens/$1.png"
+          }
+          # a libreria vuota: analisi di uno screenshot dimostrativo del pannello
+          shot 2-analisi analysis capture 20
+          # poi la demo riempie libreria e pack e si fotografano le schede
+          shot 1-cattura YES capture 60
+          shot 3-libreria YES library 8
+          shot 4-pack YES packs 8
+          shot 5-info YES info 6
+          ls -la dist/screens
 
       - name: Prepara IPA e app per simulatore
         working-directory: ios
@@ -74,6 +124,7 @@ jobs:
           path: |
             ios/dist/Whatik.ipa
             ios/dist/Whatik-simulator.zip
+            ios/dist/screens/*.png
 
       - name: Pubblica nella release "ios-latest"
         env:
@@ -87,8 +138,10 @@ jobs:
           **Whatik.ipa** non è firmata: si installa su iPhone con Sideloadly o AltStore usando il proprio Apple ID (con un account gratuito l'app va reinstallata ogni 7 giorni). Istruzioni in ios/README.md.
 
           **Whatik-simulator.zip** contiene l'app per il simulatore di Xcode o per un servizio come Appetize.io, per provarla senza iPhone.
+
+          Le schermate PNG sono prese automaticamente dal simulatore con contenuti dimostrativi.
           NOTES
-          gh release create ios-latest ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip \
+          gh release create ios-latest ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip ios/dist/screens/*.png \
             --target "$GITHUB_SHA" --prerelease --latest=false \
             --title "iOS: ultima build (#${{ github.run_number }})" \
             --notes-file notes.md

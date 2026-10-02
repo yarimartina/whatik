@@ -50,4 +50,25 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
-    scheme: {}
+    scheme:
+      testTargets:
+        - WhatikTests
+  # test nel simulatore delle parti solo iOS (ImageIO, AVFoundation, analisi completa):
+  # compila direttamente i sorgenti di Media senza ospitare l'app
+  WhatikTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: WhatikTests
+      - path: Whatik/Media
+      - path: Whatik/App/Background.swift
+    dependencies:
+      - package: WhatikCore
+        product: WhatikCore
+      - package: WhatikCore
+        product: WhatikMedia
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.whatik.tests

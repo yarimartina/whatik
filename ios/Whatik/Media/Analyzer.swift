@@ -49,6 +49,37 @@ enum Analyzer {
     static func analyzeVideo(url: URL, progress: ProgressReporter) throws -> AnalysisResult {
         let reader = try VideoReader(url: url)
         let end = min(reader.durationMs, maxAnalysisMs)
+        guard end >= 1500 else {
+            throw WhatikError.conversion("Registrazione troppo corta: tieni il pannello fermo almeno 3 secondi")
+        }
+
+        // 1) tessere del pannello: si prova qualche istante e si tiene quello con più tessere
+        progress.report(0, 100, "Cerco il pannello degli sticker")
+        var best: GridPick?
+        for t in [end / 2, end / 4, end * 3 / 4] {
+            guard let frame = try reader.frame(atMs: t, crop: nil, maxWidth: gridWidth) else { continue }
+            let result = TileGridFinder.analyze(frame.pixels, width: frame.width, height: frame.height)
+            if best == nil || result.tiles.count > (best?.result.tiles.count ?? 0) {
+                best = GridPick(result: result, frame: frame, timeMs: t)
+            }
+        }
+
+        // 2) zona da analizzare: solo il pannello, come la modalità "Tutti" di Android. Il video
+        //    che continua a girare sopra il pannello farebbe sembrare tutto uno scorrimento.
+        var zone = CropSpec.full
+        if let pick = best, !pick.result.tiles.isEmpty {
+            var l = Int.max, t = Int.max, r = 0, b = 0
+            for tile in pick.result.tiles {
+                l = min(l, tile[0]); t = min(t, tile[1])
+                r = max(r, tile[0] + tile[2]); b = max(b, tile[1] + tile[3])
+            }
+            let margin = max(2, pick.frame.width / 50)
+            let zl = max(0, l - margin), zt = max(0, t - margin)
+            let zr = min(pick.frame.width, r + margin), zb = min(pick.frame.height, b + margin)
+            zone = CropSpec.fromPixels(left: zl, top: zt, width: zr - zl, height: zb - zt, imageWidth: pick.frame.width, imageHeight: pick.frame.height)
+        }
+
+        // 3) movimento e durata del loop dentro la zona
         var grays: [[Int]] = []
         var times: [Int64] = []
         var nextSample = 0
@@ -56,7 +87,7 @@ enum Analyzer {
         try reader.read(fromMs: 0, toMs: end) { ms, image in
             if ms + 5 < nextSample { return true }
             nextSample = ms + sampleIntervalMs
-            let small = try reader.raster(image, crop: nil, maxWidth: analysisWidth)
+            let small = try reader.raster(image, crop: zone, maxWidth: analysisWidth)
             aw = small.width
             ah = small.height
             grays.append(small.gray)
@@ -64,21 +95,12 @@ enum Analyzer {
             progress.report(ms, max(1, end), "Fotogrammi letti: \(grays.count)")
             return true
         }
-        guard grays.count >= 8 else {
-            throw WhatikError.conversion("Registrazione troppo corta: tieni il pannello fermo almeno 3 secondi")
-        }
-        let proposals = StickerDetector.detect(frames: grays, width: aw, height: ah, timesMs: times)
-
-        // griglia delle tessere: si prova l'inizio del primo loop e alcuni istanti del video
-        var gridTimes = [end / 2, end * 3 / 4, end / 4]
-        if let first = proposals.first { gridTimes.insert(Int(first.startMs), at: 0) }
-        var best: GridPick?
-        for t in gridTimes {
-            guard let frame = try reader.frame(atMs: t, crop: nil, maxWidth: gridWidth) else { continue }
-            let result = TileGridFinder.analyze(frame.pixels, width: frame.width, height: frame.height)
-            if best == nil || result.tiles.count > (best?.result.tiles.count ?? 0) {
-                best = GridPick(result: result, frame: frame, timeMs: t)
-            }
+        let proposals = grays.count >= 8 ? StickerDetector.detect(frames: grays, width: aw, height: ah, timesMs: times) : []
+        /// centro di una regione in movimento, in coordinate normalizzate dell'intero fotogramma
+        func center(_ p: StickerDetector.Proposal) -> (x: Float, y: Float) {
+            let cx = (Float(p.box[0]) + Float(p.box[2]) / 2) / Float(max(1, aw))
+            let cy = (Float(p.box[1]) + Float(p.box[3]) / 2) / Float(max(1, ah))
+            return (zone.left + cx * zone.width, zone.top + cy * zone.height)
         }
 
         if let pick = best, !pick.result.tiles.isEmpty {
@@ -87,9 +109,8 @@ enum Analyzer {
                 let crop = CropSpec.fromPixels(left: tile[0], top: tile[1], width: tile[2], height: tile[3], imageWidth: pick.frame.width, imageHeight: pick.frame.height)
                 // un loop il cui centro cade nella tessera: sticker animato con quei tempi
                 let hit = proposals.first { p in
-                    let cx = (Float(p.box[0]) + Float(p.box[2]) / 2) / Float(aw)
-                    let cy = (Float(p.box[1]) + Float(p.box[3]) / 2) / Float(ah)
-                    return cx >= crop.left && cx <= crop.right && cy >= crop.top && cy <= crop.bottom
+                    let c = center(p)
+                    return c.x >= crop.left && c.x <= crop.right && c.y >= crop.top && c.y <= crop.bottom
                 }
                 let preview = pick.frame.cropped(crop).uiImage ?? UIImage()
                 if let hit = hit {
@@ -109,7 +130,7 @@ enum Analyzer {
             )
         }
 
-        // nessuna griglia: le regioni animate, allargate ai bordi dello sticker fermo
+        // nessuna griglia: le regioni animate di tutto lo schermo, allargate ai bordi dello sticker fermo
         guard let colorFrame = best?.frame else { throw WhatikError.noFrames }
         var candidates: [Candidate] = []
         for p in proposals {

@@ -28,6 +28,9 @@ farlo da solo se il computer resta acceso). AltStore funziona allo stesso modo.
 **Con TestFlight**: serve un account Apple Developer (99 €/anno). Con quello la CI può firmare e
 caricare la build su TestFlight, e chi la prova riceve solo un link d'invito.
 
+**Solo per vederla**: nella stessa release ci sono le schermate PNG dell'app, prese
+automaticamente dal simulatore con contenuti dimostrativi.
+
 **Senza iPhone**: `Whatik-simulator.zip` si apre nel simulatore di Xcode su un Mac
 (`xcrun simctl install booted Whatik.app`) oppure si carica su [Appetize.io](https://appetize.io)
 per provarla dal browser.
@@ -66,10 +69,15 @@ deduplica degli sticker.
 | --- | --- |
 | `WhatikCore/Sources/WhatikCore` | Logica pura in Swift, portata dalla versione Android: rilevatore di movimento e loop, sticker fermi, rifinitura, griglia delle tessere, rimozione dello sfondo, ritaglio, pianificazione dei pack, libreria, archivio dei pack, dati per WhatsApp |
 | `WhatikCore/Sources/WhatikMedia` | Codifica e decodifica WebP con libwebp, conversione degli sticker, operazioni sui pack |
-| `WhatikCore/Tests` | 74 test XCTest (gli stessi della versione Android più quelli su WebP e pack) |
+| `WhatikCore/Tests` | 74 test XCTest (gli stessi della versione Android più quelli su WebP e pack), girano anche su Linux |
+| `WhatikTests` | Test nel simulatore delle parti solo iOS: CoreGraphics, GIF con ImageIO, video con AVFoundation, analisi completa di uno screenshot e di una registrazione sintetica del pannello con un video che scorre sopra |
 | `Whatik/Media` | Decodifica con ImageIO, lettura dei video con AVFoundation, analisi delle registrazioni, invio a WhatsApp, link |
 | `Whatik/Views` | Interfaccia SwiftUI (iOS 16+) |
 | `project.yml` | Progetto Xcode per XcodeGen |
+
+La CI (`.github/workflows/ios.yml`) compila l'app per iPhone e per il simulatore, esegue entrambi i
+gruppi di test, avvia l'app nel simulatore con `-WhatikDemo` per le schermate e pubblica tutto
+nella release `ios-latest`.
 
 ## Compilare
 
