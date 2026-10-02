@@ -9,7 +9,9 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
+import android.util.DisplayMetrics
 import android.view.Gravity
+import android.view.WindowInsets
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -36,6 +38,12 @@ class CaptureLockOverlay(
     private var attached = false
     private var startedAt = 0L
 
+    /** Dimensioni reali dello schermo: zona e tessere sono in queste coordinate. */
+    private val screenSize: IntArray = DisplayMetrics().let { m ->
+        @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(m)
+        intArrayOf(m.widthPixels, m.heightPixels)
+    }
+
     /** Fase di elaborazione: indice della tessera corrente e testo; null = registrazione in corso. */
     @Volatile private var currentTile: Int? = null
     @Volatile private var phaseText: String? = null
@@ -54,7 +62,17 @@ class CaptureLockOverlay(
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT,
-    ).apply { gravity = Gravity.TOP or Gravity.START }
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        // la finestra deve coprire anche barra di stato (foro della fotocamera) e barra di navigazione,
+        // altrimenti parte piu' in basso e tutto cio' che si disegna risulta spostato
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            fitInsetsTypes = 0
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
 
     fun show() {
         if (attached) return
@@ -97,9 +115,15 @@ class CaptureLockOverlay(
             return true
         }
 
+        private val location = IntArray(2)
+
         override fun onDraw(canvas: Canvas) {
-            val w = width.toFloat()
-            val h = height.toFloat()
+            // si disegna in coordinate assolute dello schermo: se la finestra non parte dall'angolo
+            // (barre di sistema), la differenza viene compensata qui
+            getLocationOnScreen(location)
+            canvas.translate(-location[0].toFloat(), -location[1].toFloat())
+            val w = screenSize[0].toFloat()
+            val h = screenSize[1].toFloat()
             val elapsed = (System.currentTimeMillis() - startedAt).coerceAtLeast(0)
             val remaining = ((durationMs - elapsed) / 1000f).coerceAtLeast(0f)
             val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
@@ -113,8 +137,13 @@ class CaptureLockOverlay(
                     canvas.drawRoundRect(RectF(tile), dp(8f), dp(8f), paint)
                     if (i < current) canvas.drawRoundRect(RectF(tile), dp(8f), dp(8f), done)
                 }
-                val anchor = tiles.getOrNull(current)
-                val textY = if (anchor != null && anchor.top > h * 0.2f) anchor.top - dp(14f) else (anchor?.bottom?.toFloat() ?: (h / 2)) + dp(28f)
+                // etichetta sopra l'area delle tessere (dove c'e' il video oscurato), altrimenti sotto
+                val area = z ?: tiles.getOrNull(current)
+                val textY = when {
+                    area == null -> h / 2
+                    area.top > h * 0.2f -> area.top - dp(24f)
+                    else -> area.bottom + dp(32f)
+                }
                 canvas.drawText(phaseText ?: "", w / 2f, textY, text)
                 return
             }

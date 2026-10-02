@@ -82,6 +82,19 @@ class TileGridFinderTest {
     }
 
     @Test
+    fun dropsTilesCutByTheNavigationBar() {
+        val img = screen {
+            tile(it, 18, 740); tile(it, 136, 740); tile(it, 254, 740); tile(it, 372, 740)
+            // ultima fila visibile solo per 75 px, poi la barra di navigazione bianca
+            fill(it, 18, 888, 110, 963, 0xFFE05080.toInt()); fill(it, 254, 888, 346, 963, 0xFF4080FF.toInt())
+            fill(it, 200, 975, 280, 981, 0xFF808080.toInt()) // maniglia dei gesti
+        }
+        val tiles = TileGridFinder.find(img, w, h)
+        assertEquals(4, tiles.size)
+        assertTrue(tiles.all { it[1] in 736..744 })
+    }
+
+    @Test
     fun emptyTilePositionsAreNotInvented() {
         val img = screen { tile(it, 18, 740); tile(it, 254, 740) } // posizione 136 vuota
         val tiles = TileGridFinder.find(img, w, h)

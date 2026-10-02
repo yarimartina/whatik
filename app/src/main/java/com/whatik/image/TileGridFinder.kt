@@ -28,6 +28,8 @@ object TileGridFinder {
         val borderFraction: Float = 0.01f,
         /** Lo sfondo del pannello si stima su questa frazione inferiore del fotogramma. */
         val panelFraction: Float = 0.6f,
+        /** Scarto massimo dei lati dalla dimensione mediana delle tessere (le tagliate sono piu' piccole). */
+        val sizeTolerance: Float = 0.15f,
     )
 
     /**
@@ -87,10 +89,15 @@ object TileGridFinder {
         }
 
         if (tiles.isEmpty()) return tiles
-        // 4) completamento: le tessere con l'interno chiaro si confondono con lo sfondo; la griglia
+        // 4) le tessere tagliate (dalla barra di navigazione o dal bordo del pannello) sono piu'
+        //    piccole delle altre: si tengono solo quelle vicine alla dimensione mediana
+        val median = tiles.map { max(it[2], it[3]) }.sorted().let { it[it.size / 2] }
+        val whole = tiles.filter { min(it[2], it[3]) >= median * (1f - params.sizeTolerance) && max(it[2], it[3]) <= median * (1f + params.sizeTolerance) }
+        if (whole.isEmpty()) return whole
+        // 5) completamento: le tessere con l'interno chiaro si confondono con lo sfondo; la griglia
         //    e' regolare, quindi si provano le posizioni mancanti di ogni riga
-        val completed = completeGrid(tiles, mask, width, height, border, params)
-        // 5) ordine di lettura: righe (tolleranza mezza tessera), poi da sinistra a destra
+        val completed = completeGrid(whole, mask, width, height, border, params)
+        // 6) ordine di lettura: righe (tolleranza mezza tessera), poi da sinistra a destra
         val rowTolerance = completed.map { it[3] }.average() / 2
         return completed.sortedWith(compareBy({ (it[1] / rowTolerance).roundToInt() }, { it[0] }))
     }
