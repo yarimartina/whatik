@@ -6,7 +6,9 @@ Android, con le differenze imposte da iOS descritte sotto.
 
 ## Installare l'app
 
-Ogni push sul branch `ios` compila l'app e aggiorna la release **ios-latest**:
+Ogni push sul branch `ios/main` compila l'app e aggiorna la release **ios-latest**
+(gli altri branch iOS compilano e testano senza toccare il link; vedi `docs/BRANCH.md`).
+La guida passo passo per installarla e usarla è in [`docs/GUIDA-IOS.md`](../docs/GUIDA-IOS.md).
 
 - **https://github.com/yarimartina/whatik/releases/download/ios-latest/Whatik.ipa** (iPhone)
 - **https://github.com/yarimartina/whatik/releases/download/ios-latest/Whatik-simulator.zip** (simulatore)

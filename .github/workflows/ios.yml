@@ -1,12 +1,16 @@
 name: iOS
 
-# A ogni push che tocca ios/: test del nucleo, compilazione dell'app per iPhone (senza firma)
-# e per il simulatore, pubblicazione nella release "ios-latest". Link fissi:
+# Albero dei branch in docs/BRANCH.md. Su main e su ios/** la CI esegue i test (anche nel
+# simulatore) e compila la IPA; solo ios/main fotografa le schermate e aggiorna la release
+# "ios-latest", quindi i link fissi:
 #   https://github.com/<owner>/<repo>/releases/download/ios-latest/Whatik.ipa
 #   https://github.com/<owner>/<repo>/releases/download/ios-latest/Whatik-simulator.zip
+# Un tag ios-v* crea una release con quel numero di versione.
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "ios/**"]
+    tags: ["ios-v*"]
+    # solo le modifiche all'app iPhone e al suo workflow ricompilano iOS
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"
@@ -16,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: ios-build
+  group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -99,6 +103,7 @@ jobs:
             -quiet build
 
       - name: Schermate dell'app nel simulatore
+        if: github.ref == 'refs/heads/ios/main' || startsWith(github.ref, 'refs/tags/ios-v')
         working-directory: ios
         run: |
           UDID=${{ steps.sim.outputs.udid }}
@@ -134,12 +139,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: whatik-ios
+          if-no-files-found: warn
           path: |
             ios/dist/Whatik.ipa
             ios/dist/Whatik-simulator.zip
             ios/dist/screens/*.png
 
       - name: Pubblica nella release "ios-latest"
+        if: github.ref == 'refs/heads/ios/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -160,3 +167,14 @@ jobs:
             --target "$GITHUB_SHA" --prerelease --latest=false \
             --title "iOS: ultima build (#${{ github.run_number }})" \
             --notes-file notes.md
+
+      - name: Release della versione (tag ios-v*)
+        if: startsWith(github.ref, 'refs/tags/ios-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip ios/dist/screens/*.png
+          gh release create "$GITHUB_REF_NAME" ios/dist/Whatik.ipa ios/dist/Whatik-simulator.zip ios/dist/screens/*.png \
+            --verify-tag --latest=false \
+            --title "Whatik per iPhone $GITHUB_REF_NAME" \
+            --notes "Versione $GITHUB_REF_NAME dal commit ${GITHUB_SHA}. Installazione: docs/GUIDA-IOS.md."
