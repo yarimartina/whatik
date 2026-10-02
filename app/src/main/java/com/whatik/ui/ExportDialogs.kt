@@ -12,7 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -52,7 +53,6 @@ fun ExportDialog(
     val context = LocalContext.current
     val staticCount = plan.staticCount
     val animatedCount = plan.animatedCount
-    val hasAnimatedSource = config.items.any { it.animated }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -74,14 +74,23 @@ fun ExportDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (hasAnimatedSource) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = config.convertAnimatedToStatic,
-                            onCheckedChange = { v -> onChange { it.copy(convertAnimatedToStatic = v) } },
-                        )
-                        Text(stringResource(R.string.export_convert_animated), style = MaterialTheme.typography.bodySmall)
+                if (config.hasAnimated) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.export_mix_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    val options = listOf(
+                        PackPlanner.MixMode.ALL_ANIMATED to R.string.export_mix_all_animated,
+                        PackPlanner.MixMode.SEPARATE to R.string.export_mix_separate,
+                        PackPlanner.MixMode.ALL_STATIC to R.string.export_mix_all_static,
+                    )
+                    for ((mode, label) in options) {
+                        if (mode == PackPlanner.MixMode.SEPARATE && !config.hasStatic) continue
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { onChange { it.copy(mixMode = mode) } },
+                        ) {
+                            RadioButton(selected = config.mixMode == mode, onClick = { onChange { it.copy(mixMode = mode) } })
+                            Text(stringResource(label), style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))

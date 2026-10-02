@@ -13,7 +13,7 @@ class PackPlannerTest {
 
     @Test
     fun singleStickerMakesOneNewPackFlaggedTooSmall() {
-        val plan = PackPlanner.plan(items(1, false), convertAnimatedToStatic = false)
+        val plan = PackPlanner.plan(items(1, false), mixMode = PackPlanner.MixMode.SEPARATE)
         assertEquals(1, plan.packs.size)
         assertTrue(plan.packs[0].isNew)
         assertEquals(1, plan.tooSmall.size)
@@ -22,14 +22,14 @@ class PackPlannerTest {
 
     @Test
     fun splitsIntoChunksOfThirty() {
-        val plan = PackPlanner.plan(items(65, false), convertAnimatedToStatic = false)
+        val plan = PackPlanner.plan(items(65, false), mixMode = PackPlanner.MixMode.SEPARATE)
         assertEquals(listOf(30, 30, 5), plan.packs.map { it.items.size })
         assertTrue(plan.tooSmall.isEmpty())
     }
 
     @Test
     fun rebalancesLastPackAboveMinimum() {
-        val plan = PackPlanner.plan(items(31, false), convertAnimatedToStatic = false)
+        val plan = PackPlanner.plan(items(31, false), mixMode = PackPlanner.MixMode.SEPARATE)
         assertEquals(listOf(28, 3), plan.packs.map { it.items.size })
         assertTrue(plan.tooSmall.isEmpty())
         // nessuno sticker perso o duplicato
@@ -38,7 +38,7 @@ class PackPlannerTest {
 
     @Test
     fun separatesStaticAndAnimated() {
-        val plan = PackPlanner.plan(items(5, false) + items(4, true), convertAnimatedToStatic = false)
+        val plan = PackPlanner.plan(items(5, false) + items(4, true), mixMode = PackPlanner.MixMode.SEPARATE)
         assertEquals(2, plan.packs.size)
         assertEquals(5, plan.packs.first { !it.animated }.items.size)
         assertEquals(4, plan.packs.first { it.animated }.items.size)
@@ -46,16 +46,25 @@ class PackPlannerTest {
 
     @Test
     fun convertAnimatedToStaticMergesGroups() {
-        val plan = PackPlanner.plan(items(5, false) + items(4, true), convertAnimatedToStatic = true)
+        val plan = PackPlanner.plan(items(5, false) + items(4, true), mixMode = PackPlanner.MixMode.ALL_STATIC)
         assertEquals(1, plan.packs.size)
         assertFalse(plan.packs[0].animated)
         assertEquals(9, plan.packs[0].items.size)
     }
 
     @Test
+    fun allAnimatedPutsMixedSelectionInOneAnimatedPack() {
+        val plan = PackPlanner.plan(items(5, false) + items(4, true), mixMode = PackPlanner.MixMode.ALL_ANIMATED)
+        assertEquals(1, plan.packs.size)
+        assertTrue(plan.packs[0].animated)
+        assertEquals(9, plan.packs[0].items.size)
+        assertTrue(plan.packs[0].items.all { it.animated })
+    }
+
+    @Test
     fun fillsExistingPackThenOverflowsIntoNewOnes() {
         val target = PackPlanner.Target("p1", "Pack", animated = false, stickerCount = 28)
-        val plan = PackPlanner.plan(items(12, false), convertAnimatedToStatic = false, staticTarget = target)
+        val plan = PackPlanner.plan(items(12, false), mixMode = PackPlanner.MixMode.SEPARATE, staticTarget = target)
         assertEquals(2, plan.packs.size)
         assertEquals("p1", plan.packs[0].existingIdentifier)
         assertEquals(2, plan.packs[0].items.size)
@@ -67,7 +76,7 @@ class PackPlannerTest {
     @Test
     fun existingTargetOfWrongKindIsIgnored() {
         val target = PackPlanner.Target("p1", "Pack", animated = true, stickerCount = 2)
-        val plan = PackPlanner.plan(items(4, false), convertAnimatedToStatic = false, staticTarget = target)
+        val plan = PackPlanner.plan(items(4, false), mixMode = PackPlanner.MixMode.SEPARATE, staticTarget = target)
         assertEquals(1, plan.packs.size)
         assertTrue(plan.packs[0].isNew)
     }
@@ -75,17 +84,17 @@ class PackPlannerTest {
     @Test
     fun existingTargetBelowMinimumStaysFlagged() {
         val target = PackPlanner.Target("p1", "Pack", animated = false, stickerCount = 1)
-        val plan = PackPlanner.plan(items(1, false), convertAnimatedToStatic = false, staticTarget = target)
+        val plan = PackPlanner.plan(items(1, false), mixMode = PackPlanner.MixMode.SEPARATE, staticTarget = target)
         assertEquals(2, plan.packs[0].resultingCount)
         assertEquals(1, plan.tooSmall.size)
     }
 
     @Test
     fun packNamesAreDistinctAndDescriptive() {
-        val plan = PackPlanner.plan(items(35, false) + items(3, true), convertAnimatedToStatic = false)
+        val plan = PackPlanner.plan(items(35, false) + items(3, true), mixMode = PackPlanner.MixMode.SEPARATE)
         val names = plan.packs.map { PackPlanner.packName("TikTok", plan, it) }
         assertEquals(listOf("TikTok statici 1", "TikTok statici 2", "TikTok animati"), names)
-        val single = PackPlanner.plan(items(3, false), convertAnimatedToStatic = false)
+        val single = PackPlanner.plan(items(3, false), mixMode = PackPlanner.MixMode.SEPARATE)
         assertEquals("TikTok", PackPlanner.packName("TikTok", single, single.packs[0]))
         assertEquals("Sticker", PackPlanner.packName("   ", single, single.packs[0]))
     }

@@ -55,7 +55,10 @@
     <string name="export_title">Copy to WhatsApp</string>
     <string name="export_name">Pack name</string>
     <string name="export_publisher">Author</string>
-    <string name="export_convert_animated">Convert animated stickers to static (first frame)</string>
+    <string name="export_mix_title">Still and animated stickers</string>
+    <string name="export_mix_all_animated">One animated pack: still stickers become two identical frames (like Sticker Maker)</string>
+    <string name="export_mix_separate">Separate packs: one for still stickers, one for animated</string>
+    <string name="export_mix_all_static">All static: animated ones keep their first frame</string>
     <string name="export_group_static">%d static stickers</string>
     <string name="export_group_animated">%d animated stickers</string>
     <string name="export_target_new">New pack</string>

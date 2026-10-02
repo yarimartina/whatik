@@ -19,7 +19,7 @@ class StickerExporter(private val library: StickerLibrary, private val packStore
     data class Config(
         val baseName: String,
         val publisher: String,
-        val convertAnimatedToStatic: Boolean,
+        val mixMode: PackPlanner.MixMode,
         val emojis: List<String>,
     )
 
@@ -50,7 +50,7 @@ class StickerExporter(private val library: StickerLibrary, private val packStore
                 onProgress(done, total, item.displayName)
                 try {
                     val bytes = library.file(item).readBytes()
-                    val result = StickerConverter.convert(bytes, forceStatic = !planned.animated)
+                    val result = StickerConverter.convertForPack(bytes, packAnimated = planned.animated)
                     if (result.animated != planned.animated) {
                         failures.add(Failure(item.displayName, if (planned.animated) "non contiene un'animazione" else "risultato inatteso"))
                     } else {

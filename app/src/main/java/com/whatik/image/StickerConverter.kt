@@ -30,6 +30,8 @@ object StickerConverter {
     private const val SHORT_FRAME_MS = 20
     private const val DEFAULT_FRAME_MS = 100
     private const val INITIAL_MAX_FRAMES = 100
+    /** Durata di ciascuno dei due fotogrammi di uno sticker fermo reso animato. */
+    private const val STILL_FRAME_MS = 500
     private const val MAX_ATTEMPTS = 9
 
     class Result(val bytes: ByteArray, val animated: Boolean, val frameCount: Int, val quality: Int)
@@ -48,6 +50,26 @@ object StickerConverter {
     /** Converte qualunque sorgente di fotogrammi (immagine, GIF/WebP animato, video ritagliato). */
     fun convert(producer: FrameProducer, forceStatic: Boolean): Result =
         if (forceStatic || producer.info.frameCount < 2) convertStatic(producer) else convertAnimated(producer)
+
+    /**
+     * Converte per un pack di tipo dato: in un pack animato anche gli sticker fermi devono
+     * essere WebP animati (WhatsApp non mescola i tipi), quindi diventano due fotogrammi identici.
+     */
+    fun convertForPack(bytes: ByteArray, packAnimated: Boolean): Result {
+        val result = convert(bytes, forceStatic = !packAnimated)
+        return if (packAnimated && !result.animated) animateStill(result.bytes, result.quality) else result
+    }
+
+    /** Trasforma uno sticker WebP statico in un'animazione di due fotogrammi identici. */
+    fun animateStill(staticWebP: ByteArray, quality: Int = 100): Result {
+        val frame = WebPContainer.parse(staticWebP).frames.first().standalone
+        val animated = WebPContainer.muxAnimation(
+            STICKER_SIZE, STICKER_SIZE,
+            listOf(WebPContainer.FrameSpec(frame, STILL_FRAME_MS), WebPContainer.FrameSpec(frame, STILL_FRAME_MS)),
+        )
+        if (animated.size > MAX_ANIMATED_BYTES) throw ConversionException("Sticker troppo pesante per un pack animato")
+        return Result(animated, animated = true, frameCount = 2, quality = quality)
+    }
 
     // ---------------------------------------------------------------- statico
 

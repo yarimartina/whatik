@@ -16,7 +16,7 @@ Gli sticker che crei (Condividi → *Crea sticker*) o salvi mentre scorri i vide
 Poi:
 
 - **Seleziona** gli sticker nella griglia: un tocco seleziona il singolo sticker, *Seleziona tutto* li prende tutti.
-- **Copia su WhatsApp**: scegli nome e autore del pack, poi *Converti*. Whatik converte ogni immagine in **WebP 512×512** (≤ 100 KB se statico, ≤ 500 KB se animato), conserva le **animazioni** di GIF e WebP animati entro i 10 secondi riducendo qualità e fotogrammi quando serve, genera l'**icona del pack** e distribuisce gli sticker rispettando le regole di WhatsApp: **da 3 a 30 sticker per pack**, pack **solo statici o solo animati** (oppure animati convertiti in statici), con la possibilità di aggiungere a un **pack esistente**.
+- **Copia su WhatsApp**: scegli nome e autore del pack, poi *Converti*. Whatik converte ogni immagine in **WebP 512×512** (≤ 100 KB se statico, ≤ 500 KB se animato), conserva le **animazioni** di GIF e WebP animati entro i 10 secondi riducendo qualità e fotogrammi quando serve, genera l'**icona del pack** e distribuisce gli sticker rispettando le regole di WhatsApp: **da 3 a 30 sticker per pack** e pack **solo statici o solo animati**. Una selezione mista finisce di default in **un solo pack animato**, con gli sticker fermi trasformati in animazioni di due fotogrammi identici (lo stesso trucco di Sticker Maker); in alternativa pack separati per tipo o tutto statico. Si può anche aggiungere a un **pack esistente**.
 - Il pack viene aperto in **WhatsApp** (consumer o Business) tramite l'intent ufficiale `com.whatsapp.intent.action.ENABLE_STICKER_PACK`. Nella schermata *Pack* si vedono tutti i pack creati, il loro stato su WhatsApp e si possono riaprire o eliminare.
 
 ## Requisiti

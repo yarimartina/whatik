@@ -138,10 +138,13 @@ sealed class ExportState {
         val items: List<PackPlanner.Item>,
         val baseName: String,
         val publisher: String,
-        val convertAnimatedToStatic: Boolean,
+        val mixMode: PackPlanner.MixMode,
         val staticTargetId: String?,
         val animatedTargetId: String?,
-    ) : ExportState()
+    ) : ExportState() {
+        val hasAnimated: Boolean get() = items.any { it.animated }
+        val hasStatic: Boolean get() = items.any { !it.animated }
+    }
     data class Running(val done: Int, val total: Int, val currentName: String) : ExportState()
     data class Finished(val result: StickerExporter.Result) : ExportState()
 }
@@ -719,11 +722,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openExport() {
         val chosen = items.value.filter { it.id in _selected.value }
         if (chosen.isEmpty()) return
+        val items = chosen.map { PackPlanner.Item(it.id, it.animated) }
+        val mixed = items.any { it.animated } && items.any { !it.animated }
         _exportState.value = ExportState.Configuring(
-            items = chosen.map { PackPlanner.Item(it.id, it.animated) },
+            items = items,
             baseName = app.getString(R.string.default_pack_name),
             publisher = app.getString(R.string.default_publisher),
-            convertAnimatedToStatic = false,
+            // selezione mista: un solo pack animato, come fanno le app di sticker per WhatsApp
+            mixMode = if (mixed) PackPlanner.MixMode.ALL_ANIMATED else PackPlanner.MixMode.SEPARATE,
             staticTargetId = null,
             animatedTargetId = null,
         )
@@ -742,7 +748,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun currentPlan(config: ExportState.Configuring): PackPlanner.Plan {
         val staticTarget = packs.value.firstOrNull { it.identifier == config.staticTargetId }?.toTarget()
         val animatedTarget = packs.value.firstOrNull { it.identifier == config.animatedTargetId }?.toTarget()
-        return PackPlanner.plan(config.items, config.convertAnimatedToStatic, staticTarget, animatedTarget)
+        return PackPlanner.plan(config.items, config.mixMode, staticTarget, animatedTarget)
     }
 
     private fun StickerPack.toTarget() = PackPlanner.Target(identifier, name, animated, stickers.size)
@@ -756,7 +762,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = try {
                 app.exporter.export(
                     plan,
-                    StickerExporter.Config(config.baseName, config.publisher, config.convertAnimatedToStatic, DEFAULT_EMOJIS),
+                    StickerExporter.Config(config.baseName, config.publisher, config.mixMode, DEFAULT_EMOJIS),
                 ) { done, totalCount, name ->
                     _exportState.value = ExportState.Running(done, totalCount, name)
                 }

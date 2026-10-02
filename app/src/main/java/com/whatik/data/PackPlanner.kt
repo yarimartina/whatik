@@ -13,6 +13,16 @@ object PackPlanner {
 
     data class Item(val id: String, val animated: Boolean)
 
+    /** Come trattare una selezione che mescola sticker fermi e animati. */
+    enum class MixMode {
+        /** Un solo pack animato: gli sticker fermi diventano animazioni di due fotogrammi identici (come Sticker Maker). */
+        ALL_ANIMATED,
+        /** Pack distinti per tipo, come richiede WhatsApp alla lettera. */
+        SEPARATE,
+        /** Tutto statico: degli animati resta il primo fotogramma. */
+        ALL_STATIC,
+    }
+
     data class Target(val identifier: String, val name: String, val animated: Boolean, val stickerCount: Int)
 
     data class PlannedPack(
@@ -37,18 +47,21 @@ object PackPlanner {
     }
 
     /**
-     * @param convertAnimatedToStatic se true gli sticker animati vengono trattati come
-     *        statici (verrà usato il primo fotogramma) e finiscono nei pack statici.
+     * @param mixMode come combinare sticker fermi e animati (vedi [MixMode]).
      * @param staticTarget pack esistente in cui inserire gli sticker statici (o null = pack nuovo).
      * @param animatedTarget pack esistente in cui inserire gli sticker animati (o null = pack nuovo).
      */
     fun plan(
         items: List<Item>,
-        convertAnimatedToStatic: Boolean,
+        mixMode: MixMode,
         staticTarget: Target? = null,
         animatedTarget: Target? = null,
     ): Plan {
-        val normalized = if (convertAnimatedToStatic) items.map { it.copy(animated = false) } else items
+        val normalized = when (mixMode) {
+            MixMode.ALL_ANIMATED -> items.map { it.copy(animated = true) }
+            MixMode.ALL_STATIC -> items.map { it.copy(animated = false) }
+            MixMode.SEPARATE -> items
+        }
         val packs = ArrayList<PlannedPack>()
         var newIndex = 0
         for (animated in listOf(false, true)) {
