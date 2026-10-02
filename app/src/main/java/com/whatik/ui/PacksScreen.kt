@@ -1,6 +1,7 @@
 package com.whatik.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ fun PacksScreen(
     onBack: () -> Unit,
     onAddToWhatsApp: (StickerPack) -> Unit,
     onDelete: (String) -> Unit,
+    onOpen: (String) -> Unit,
 ) {
     var packToDelete by remember { mutableStateOf<StickerPack?>(null) }
 
@@ -92,6 +94,7 @@ fun PacksScreen(
                         stickerFiles = stickerFilesOf(pack),
                         onAddToWhatsApp = { onAddToWhatsApp(pack) },
                         onDelete = { packToDelete = pack },
+                        onOpen = { onOpen(pack.identifier) },
                     )
                 }
             }
@@ -123,8 +126,9 @@ private fun PackCard(
     stickerFiles: List<File>,
     onAddToWhatsApp: () -> Unit,
     onDelete: () -> Unit,
+    onOpen: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
@@ -188,6 +192,7 @@ private fun PackCard(
                     }
                 }
                 Spacer(Modifier.weight(1f))
+                TextButton(onClick = onOpen) { Text(stringResource(R.string.pack_action_manage)) }
                 TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
             }
         }

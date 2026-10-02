@@ -93,6 +93,46 @@
     <string name="pack_status_not_added">Non ancora su WhatsApp</string>
     <string name="pack_status_too_small">Servono almeno %2$d sticker (%1$d/%2$d)</string>
     <string name="pack_delete_confirm">Eliminare il pack "%s"? Non sarà più disponibile neanche per WhatsApp.</string>
+    <string name="pack_action_manage">Gestisci</string>
+    <string name="pack_action_add">Aggiungi sticker</string>
+    <string name="pack_action_merge">Unisci con altri pack…</string>
+    <string name="pack_action_merge_short">Unisci</string>
+    <string name="pack_action_rename">Rinomina</string>
+    <string name="pack_action_remove">Rimuovi dal pack</string>
+    <string name="pack_free_slots">%1$d/%2$d</string>
+    <string name="pack_detail_hint">Tocca gli sticker per selezionarli e rimuoverli dal pack. Le modifiche arrivano a WhatsApp alla prossima apertura del pack (o con "Riapri su WhatsApp").</string>
+    <string name="pack_empty">Pack vuoto: aggiungi sticker dalla libreria.</string>
+    <plurals name="pack_remove_confirm">
+        <item quantity="one">Rimuovere %d sticker dal pack?</item>
+        <item quantity="other">Rimuovere %d sticker dal pack?</item>
+    </plurals>
+    <string name="pack_remove_body">Gli sticker restano nella libreria, se ci sono ancora.</string>
+    <string name="pack_add_title">Aggiungi a "%s"</string>
+    <string name="pack_add_fab">Aggiungi (%1$d/%2$d)</string>
+    <string name="pack_add_hint">Posti liberi: %1$d. Il pack è %2$s: gli sticker scelti vengono convertiti a quel tipo. Chi è già nel pack non viene mostrato.</string>
+    <string name="pack_add_empty">Nessuno sticker da aggiungere: importane altri nella libreria.</string>
+    <string name="pack_progress">Conversione %1$d/%2$d</string>
+    <string name="merge_title">Unisci pack</string>
+    <string name="merge_hint">Scegli i pack da unire dentro "%s". Oltre i 30 sticker vengono creati pack nuovi numerati.</string>
+    <string name="merge_none">Non ci sono altri pack da unire.</string>
+    <string name="merge_result_type">Tipi diversi: risultato</string>
+    <string name="merge_result_animated">Pack animato: gli sticker fermi diventano animazioni di due fotogrammi</string>
+    <string name="merge_result_static">Tutto statico: degli animati resta il primo fotogramma</string>
+    <string name="merge_delete_sources">Elimina i pack uniti dopo l\'unione</string>
+    <string name="merge_summary">%1$d sticker in totale: %2$d in questo pack, %3$d in %4$d pack nuovi.</string>
+    <string name="merge_confirm">Unisci</string>
+    <string name="rename_title">Rinomina pack</string>
+    <string name="action_save">Salva</string>
+    <plurals name="msg_pack_added">
+        <item quantity="one">%d sticker aggiunto al pack</item>
+        <item quantity="other">%d sticker aggiunti al pack</item>
+    </plurals>
+    <plurals name="msg_pack_removed">
+        <item quantity="one">%d sticker rimosso dal pack</item>
+        <item quantity="other">%d sticker rimossi dal pack</item>
+    </plurals>
+    <string name="msg_pack_skipped">%d non aggiunti: pack pieno</string>
+    <string name="msg_pack_merged">Pack uniti: %1$d sticker aggiunti, %2$d pack nuovi</string>
 
     <string name="msg_deleted">%d sticker eliminati</string>
     <plurals name="msg_imported">

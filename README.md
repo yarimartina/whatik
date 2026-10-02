@@ -17,7 +17,7 @@ Poi:
 
 - **Seleziona** gli sticker nella griglia: un tocco seleziona il singolo sticker, *Seleziona tutto* li prende tutti.
 - **Copia su WhatsApp**: scegli nome e autore del pack, poi *Converti*. Whatik converte ogni immagine in **WebP 512×512** (≤ 100 KB se statico, ≤ 500 KB se animato), conserva le **animazioni** di GIF e WebP animati entro i 10 secondi riducendo qualità e fotogrammi quando serve, genera l'**icona del pack** e distribuisce gli sticker rispettando le regole di WhatsApp: **da 3 a 30 sticker per pack** e pack **solo statici o solo animati**. Una selezione mista finisce di default in **un solo pack animato**, con gli sticker fermi trasformati in animazioni di due fotogrammi identici (lo stesso trucco di Sticker Maker); in alternativa pack separati per tipo o tutto statico. Si può anche aggiungere a un **pack esistente**.
-- Il pack viene aperto in **WhatsApp** (consumer o Business) tramite l'intent ufficiale `com.whatsapp.intent.action.ENABLE_STICKER_PACK`. Nella schermata *Pack* si vedono tutti i pack creati, il loro stato su WhatsApp e si possono riaprire o eliminare.
+- Il pack viene aperto in **WhatsApp** (consumer o Business) tramite l'intent ufficiale `com.whatsapp.intent.action.ENABLE_STICKER_PACK`. Nella schermata *Pack* si vedono tutti i pack creati e il loro stato su WhatsApp; *Gestisci* apre il dettaglio del pack: aggiunta di sticker dalla libreria (convertiti al tipo del pack, fino a 30), rimozione degli sticker selezionati, rinomina, eliminazione e **unione con altri pack** dell'app. Nell'unione gli sticker oltre i 30 finiscono in pack nuovi numerati e, se i tipi sono diversi, si sceglie se il risultato è animato (gli sticker fermi diventano due fotogrammi) o tutto statico; i pack uniti si possono eliminare automaticamente. Ogni modifica incrementa `image_data_version`, così WhatsApp ricarica le immagini.
 
 ## Requisiti
 
@@ -67,6 +67,7 @@ Serve JDK 17+ e l'Android SDK (compileSdk 35). Con `-PbuildNumber=N` si imposta 
 | `data/MediaScanner.kt` | Ricerca nel MediaStore con riconoscimento delle cartelle TikTok |
 | `data/PackPlanner.kt` | Suddivisione della selezione in pack (3–30, statici/animati, pack esistenti) |
 | `data/PackStore.kt` / `data/StickerExporter.kt` | Pack su disco e pipeline di conversione |
+| `data/PackManager.kt` | Aggiunta dalla libreria, unione di pack, cambio di tipo statico/animato |
 | `whatsapp/StickerContentProvider.kt` | ContentProvider nel formato dell'API ufficiale WhatsApp |
 | `whatsapp/WhatsAppBridge.kt` | Intent di aggiunta e verifica dei pack già presenti su WhatsApp |
 | `ui/` | Interfaccia Jetpack Compose (libreria, ricerca, pack, dialoghi di esportazione) |

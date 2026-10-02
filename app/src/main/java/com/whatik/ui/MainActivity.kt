@@ -136,6 +136,7 @@ fun WhatikRoot(vm: MainViewModel) {
         }
     }
     val captureUi by vm.captureUi.collectAsStateWithLifecycle()
+    val packDetail by vm.packDetail.collectAsStateWithLifecycle()
 
     val addToWhatsApp: (StickerPack) -> Unit = { pack ->
         val intent = WhatsAppBridge.addPackIntent(context, pack)
@@ -190,7 +191,59 @@ fun WhatikRoot(vm: MainViewModel) {
             onBack = { vm.back() },
             onAddToWhatsApp = addToWhatsApp,
             onDelete = vm::deletePack,
+            onOpen = vm::openPack,
         )
+        Screen.PACK_DETAIL -> {
+            val detail = packDetail
+            val pack = detail?.let { d -> packs.firstOrNull { it.identifier == d.packId } }
+            if (detail != null && pack != null) {
+                PackDetailScreen(
+                    pack = pack,
+                    detail = detail,
+                    allPacks = packs,
+                    added = addedToWhatsApp[pack.identifier] == true,
+                    stickerFileOf = { p, name -> java.io.File(app.packStore.packDir(p.identifier), name) },
+                    snackbarHost = snackbarHost,
+                    onBack = { vm.back() },
+                    onToggleSticker = vm::togglePackSticker,
+                    onClearSelection = vm::clearPackSelection,
+                    onRemoveSelected = vm::removeSelectedFromPack,
+                    onAddStickers = vm::openAddToPack,
+                    onOpenMerge = vm::openMerge,
+                    onDismissMerge = vm::dismissMerge,
+                    onToggleMergeSource = vm::toggleMergeSource,
+                    onMergeResultAnimated = vm::setMergeResultAnimated,
+                    onMergeDeleteSources = vm::setMergeDeleteSources,
+                    onConfirmMerge = vm::confirmMerge,
+                    onOpenRename = vm::openRename,
+                    onDismissRename = vm::dismissRename,
+                    onRename = vm::renamePack,
+                    onDelete = { vm.deletePack(pack.identifier) },
+                    onAddToWhatsApp = { addToWhatsApp(pack) },
+                )
+            } else {
+                vm.navigate(Screen.PACKS)
+            }
+        }
+        Screen.PACK_ADD -> {
+            val detail = packDetail
+            val pack = detail?.let { d -> packs.firstOrNull { it.identifier == d.packId } }
+            if (detail != null && pack != null) {
+                AddToPackScreen(
+                    pack = pack,
+                    items = items,
+                    selected = detail.addSelection,
+                    busy = detail.progress != null,
+                    fileOf = { app.library.file(it) },
+                    snackbarHost = snackbarHost,
+                    onBack = { vm.back() },
+                    onToggle = vm::toggleAddItem,
+                    onConfirm = vm::confirmAddToPack,
+                )
+            } else {
+                vm.navigate(Screen.PACKS)
+            }
+        }
         Screen.EDITOR -> {
             val state = editorState
             if (state != null) {

@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-enum class Screen { LIBRARY, SCAN, PACKS, EDITOR, LINK_RESULTS, CAPTURE }
+enum class Screen { LIBRARY, SCAN, PACKS, PACK_DETAIL, PACK_ADD, EDITOR, LINK_RESULTS, CAPTURE }
 
 sealed class ScanState {
     data object Idle : ScanState()
@@ -132,6 +132,25 @@ data class EditorState(
         }
 }
 
+/** Stato della schermata di dettaglio di un pack e dei suoi dialoghi. */
+data class PackDetailState(
+    val packId: String,
+    /** Sticker (nomi file) selezionati nel pack. */
+    val selected: Set<String> = emptySet(),
+    /** Sticker della libreria selezionati per l'aggiunta. */
+    val addSelection: Set<String> = emptySet(),
+    val merge: MergeState? = null,
+    val renaming: Boolean = false,
+    /** Operazione in corso: (fatti, totale). */
+    val progress: Pair<Int, Int>? = null,
+)
+
+data class MergeState(
+    val sourceIds: Set<String> = emptySet(),
+    val resultAnimated: Boolean = true,
+    val deleteSources: Boolean = true,
+)
+
 sealed class ExportState {
     data object Hidden : ExportState()
     data class Configuring(
@@ -174,6 +193,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Hidden)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
+
+    private val _packDetail = MutableStateFlow<PackDetailState?>(null)
+    val packDetail: StateFlow<PackDetailState?> = _packDetail.asStateFlow()
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
@@ -224,6 +246,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun back(): Boolean {
         when (_screen.value) {
             Screen.EDITOR -> { closeEditor(); return true }
+            Screen.PACK_ADD -> { _screen.value = Screen.PACK_DETAIL; return true }
+            Screen.PACK_DETAIL -> { _packDetail.value = null; _screen.value = Screen.PACKS; return true }
             Screen.LIBRARY -> Unit
             else -> { _screen.value = Screen.LIBRARY; return true }
         }
@@ -776,11 +800,139 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ------------------------------------------------------------ dettaglio pack
+
+    fun openPack(identifier: String) {
+        _packDetail.value = PackDetailState(identifier)
+        _screen.value = Screen.PACK_DETAIL
+        refreshWhatsAppStatus()
+    }
+
+    fun togglePackSticker(fileName: String) {
+        _packDetail.update { d -> d?.copy(selected = if (fileName in d.selected) d.selected - fileName else d.selected + fileName) }
+    }
+
+    fun clearPackSelection() = _packDetail.update { it?.copy(selected = emptySet()) }
+
+    fun removeSelectedFromPack() {
+        val detail = _packDetail.value ?: return
+        if (detail.selected.isEmpty()) return
+        viewModelScope.launch {
+            app.packStore.removeStickers(detail.packId, detail.selected)
+            _packDetail.update { it?.copy(selected = emptySet()) }
+            _messages.emit(app.resources.getQuantityString(R.plurals.msg_pack_removed, detail.selected.size, detail.selected.size))
+        }
+    }
+
+    fun openAddToPack() {
+        _packDetail.update { it?.copy(addSelection = emptySet()) }
+        _screen.value = Screen.PACK_ADD
+    }
+
+    fun toggleAddItem(itemId: String) {
+        val detail = _packDetail.value ?: return
+        val pack = packs.value.firstOrNull { it.identifier == detail.packId } ?: return
+        val free = PackPlanner.MAX_STICKERS - pack.stickers.size
+        _packDetail.update { d ->
+            d ?: return@update d
+            when {
+                itemId in d.addSelection -> d.copy(addSelection = d.addSelection - itemId)
+                d.addSelection.size >= free -> d
+                else -> d.copy(addSelection = d.addSelection + itemId)
+            }
+        }
+    }
+
+    fun confirmAddToPack() {
+        val detail = _packDetail.value ?: return
+        val ids = detail.addSelection.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            _packDetail.update { it?.copy(progress = 0 to ids.size) }
+            val report = runCatching {
+                app.packManager.addLibraryItems(detail.packId, ids, DEFAULT_EMOJIS) { done, total ->
+                    _packDetail.update { it?.copy(progress = done to total) }
+                }
+            }
+            _packDetail.update { it?.copy(progress = null, addSelection = emptySet()) }
+            _screen.value = Screen.PACK_DETAIL
+            report.onSuccess { r ->
+                val parts = ArrayList<String>()
+                parts.add(app.resources.getQuantityString(R.plurals.msg_pack_added, r.added, r.added))
+                if (r.skipped > 0) parts.add(app.getString(R.string.msg_pack_skipped, r.skipped))
+                if (r.failures.isNotEmpty()) parts.add(app.getString(R.string.msg_failed, r.failures.size, r.failures.first()))
+                _messages.emit(parts.joinToString(" · "))
+            }.onFailure { _messages.emit(app.getString(R.string.msg_failed, ids.size, it.message ?: "")) }
+            refreshWhatsAppStatus()
+        }
+    }
+
+    fun openMerge() {
+        val detail = _packDetail.value ?: return
+        val target = packs.value.firstOrNull { it.identifier == detail.packId } ?: return
+        _packDetail.update { it?.copy(merge = MergeState(resultAnimated = target.animated)) }
+    }
+
+    fun dismissMerge() = _packDetail.update { it?.copy(merge = null) }
+
+    fun toggleMergeSource(identifier: String) {
+        _packDetail.update { d ->
+            val m = d?.merge ?: return@update d
+            val sources = if (identifier in m.sourceIds) m.sourceIds - identifier else m.sourceIds + identifier
+            // se si mescolano tipi diversi, il risultato di default e' animato
+            val target = packs.value.firstOrNull { it.identifier == d.packId }
+            val types = (sources.mapNotNull { id -> packs.value.firstOrNull { it.identifier == id }?.animated } + listOfNotNull(target?.animated)).toSet()
+            d.copy(merge = m.copy(sourceIds = sources, resultAnimated = if (types.size > 1) true else types.firstOrNull() ?: m.resultAnimated))
+        }
+    }
+
+    fun setMergeResultAnimated(animated: Boolean) = _packDetail.update { d -> d?.copy(merge = d.merge?.copy(resultAnimated = animated)) }
+
+    fun setMergeDeleteSources(delete: Boolean) = _packDetail.update { d -> d?.copy(merge = d.merge?.copy(deleteSources = delete)) }
+
+    fun confirmMerge() {
+        val detail = _packDetail.value ?: return
+        val merge = detail.merge ?: return
+        if (merge.sourceIds.isEmpty()) return
+        viewModelScope.launch {
+            _packDetail.update { it?.copy(merge = null, progress = 0 to 1) }
+            val report = runCatching {
+                app.packManager.merge(detail.packId, merge.sourceIds.toList(), merge.resultAnimated, merge.deleteSources) { done, total ->
+                    _packDetail.update { it?.copy(progress = done to total.coerceAtLeast(1)) }
+                }
+            }
+            _packDetail.update { it?.copy(progress = null) }
+            report.onSuccess { r ->
+                val parts = ArrayList<String>()
+                parts.add(app.getString(R.string.msg_pack_merged, r.added, r.overflowPacks.size))
+                if (r.failures.isNotEmpty()) parts.add(app.getString(R.string.msg_failed, r.failures.size, r.failures.first()))
+                _messages.emit(parts.joinToString(" · "))
+            }.onFailure { _messages.emit(app.getString(R.string.msg_failed, 1, it.message ?: "")) }
+            refreshWhatsAppStatus()
+        }
+    }
+
+    fun openRename() = _packDetail.update { it?.copy(renaming = true) }
+
+    fun dismissRename() = _packDetail.update { it?.copy(renaming = false) }
+
+    fun renamePack(name: String, publisher: String) {
+        val detail = _packDetail.value ?: return
+        viewModelScope.launch {
+            app.packStore.rename(detail.packId, name, publisher)
+            _packDetail.update { it?.copy(renaming = false) }
+        }
+    }
+
     // ------------------------------------------------------------ pack
 
     fun deletePack(identifier: String) {
         viewModelScope.launch {
             app.packStore.delete(identifier)
+            if (_packDetail.value?.packId == identifier) {
+                _packDetail.value = null
+                _screen.value = Screen.PACKS
+            }
             _messages.emit(app.getString(R.string.msg_pack_deleted))
         }
     }

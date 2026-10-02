@@ -108,18 +108,45 @@ class PackStore(context: Context) {
             }
         }
 
-    suspend fun removeSticker(identifier: String, fileName: String): StickerPack? = withContext(Dispatchers.IO) {
+    suspend fun removeStickers(identifier: String, fileNames: Set<String>): StickerPack? = withContext(Dispatchers.IO) {
         mutex.withLock {
             val pack = load(identifier) ?: return@withLock null
-            val remaining = pack.stickers.filterNot { it.fileName == fileName }
+            val remaining = pack.stickers.filterNot { it.fileName in fileNames }
             if (remaining.size == pack.stickers.size) return@withLock pack
-            File(packDir(identifier), fileName).delete()
+            fileNames.forEach { File(packDir(identifier), it).delete() }
             val updated = pack.copy(stickers = remaining, updatedAt = System.currentTimeMillis(), imageDataVersion = pack.imageDataVersion + 1)
             writePack(updated)
             refresh()
             updated
         }
     }
+
+    fun readSticker(pack: StickerPack, sticker: PackSticker): ByteArray = stickerFile(pack, sticker).readBytes()
+
+    /** Sostituisce tutti gli sticker (es. cambio di tipo statico/animato), conservando emoji e nomi. */
+    suspend fun replaceAllStickers(identifier: String, animated: Boolean, stickers: List<Pair<PackSticker, ByteArray>>): StickerPack =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val pack = load(identifier) ?: throw IllegalArgumentException("Pack $identifier inesistente")
+                val dir = packDir(identifier)
+                val oldFiles = pack.stickers.map { it.fileName }.toSet()
+                val replaced = stickers.mapIndexed { i, (meta, bytes) ->
+                    val fileName = String.format(Locale.US, "s_%d_%06x.webp", i + 1, Random.nextInt(0xFFFFFF))
+                    File(dir, fileName).writeBytes(bytes)
+                    meta.copy(fileName = fileName)
+                }
+                oldFiles.forEach { File(dir, it).delete() }
+                val updated = pack.copy(
+                    animated = animated,
+                    stickers = replaced,
+                    updatedAt = System.currentTimeMillis(),
+                    imageDataVersion = pack.imageDataVersion + 1,
+                )
+                writePack(updated)
+                refresh()
+                updated
+            }
+        }
 
     suspend fun rename(identifier: String, name: String, publisher: String): StickerPack? = withContext(Dispatchers.IO) {
         mutex.withLock {

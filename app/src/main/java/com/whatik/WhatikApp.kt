@@ -6,6 +6,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
+import com.whatik.data.PackManager
 import com.whatik.data.PackStore
 import com.whatik.data.StickerExporter
 import com.whatik.data.StickerLibrary
@@ -16,6 +17,7 @@ class WhatikApp : Application(), ImageLoaderFactory {
     val library: StickerLibrary by lazy { StickerLibrary(this) }
     val packStore: PackStore by lazy { PackStore(this) }
     val exporter: StickerExporter by lazy { StickerExporter(library, packStore) }
+    val packManager: PackManager by lazy { PackManager(library, packStore) }
 
     /** ImageLoader di Coil con supporto alle anteprime animate (GIF e WebP animati). */
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
