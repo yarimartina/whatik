@@ -82,8 +82,7 @@ git switch ios/main && git tag ios-v1.0.0 && git push origin ios-v1.0.0
 
 ## Stato attuale
 
-- `main` e `android/main` sono aggiornati: contengono le correzioni `android/fix/sfondo-sticker` (i bordi bianchi si tolgono senza bucare lo sfondo di un meme) e `android/fix/punta-delinea-sticker` (Punta evidenzia e ritaglia lo sticker toccato). `main` ha anche la stessa correzione dello sfondo per iPhone.
-- `ios/main` non esiste ancora: GitHub non permette di avere insieme il vecchio branch `ios` e i branch `ios/...`. Appena `ios` viene cancellato (da *Code → Branches*, cestino accanto a `ios`), `ios/main` si crea da `main` e la sua build aggiorna l'IPA. Fino ad allora l'IPA pubblicata è quella del vecchio branch `ios`.
-- `ccr-9919d90b-bs5jr4` è il branch della prima sessione di sviluppo: contiene la stessa storia ed è tenuto solo come archivio. Le build non partono più su quel branch.
-- Il branch predefinito di GitHub va impostato su `main` da *Settings → General → Default branch*; dopo si può cancellare `ccr-9919d90b-bs5jr4`.
-- Consigliato: proteggere `main`, `android/main` e `ios/main` da *Settings → Branches* in modo che si aggiornino solo con pull request.
+- Il branch predefinito di GitHub è `main`. I vecchi branch `ios` e `ccr-9919d90b-bs5jr4` sono stati cancellati.
+- `main`, `android/main` e `ios/main` hanno gli stessi file, con le correzioni `android/fix/sfondo-sticker` (i bordi bianchi si tolgono senza bucare lo sfondo di un meme, anche su iPhone) e `android/fix/punta-delinea-sticker` (Punta evidenzia e ritaglia lo sticker toccato).
+- I branch di correzione già uniti (`android/fix/...`) si possono cancellare da *Code → Branches* quando non servono più.
+- Facoltativo: proteggere `main`, `android/main` e `ios/main` da *Settings → Branches*; in quel caso si aggiornano solo con pull request.
