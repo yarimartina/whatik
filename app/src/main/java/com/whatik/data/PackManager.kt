@@ -1,6 +1,7 @@
 package com.whatik.data
 
 import com.whatik.image.StickerConverter
+import com.whatik.image.StickerPassthrough
 import com.whatik.image.WebPContainer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -41,7 +42,8 @@ class PackManager(private val library: StickerLibrary, private val packStore: Pa
             onProgress(i, chosen.size)
             val item = library.find(id) ?: continue
             try {
-                val result = StickerConverter.convertForPack(library.file(item).readBytes(), pack.animated)
+                // già conforme al tipo del pack: si copiano i byte, senza ricodificare
+                val result = StickerPassthrough.prepareForPack(library.file(item).readBytes(), pack.animated)
                 converted.add(
                     PackStore.ConvertedSticker(
                         bytes = result.bytes,

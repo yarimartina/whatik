@@ -1,6 +1,7 @@
 package com.whatik.data
 
 import com.whatik.image.StickerConverter
+import com.whatik.image.StickerPassthrough
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -50,7 +51,8 @@ class StickerExporter(private val library: StickerLibrary, private val packStore
                 onProgress(done, total, item.displayName)
                 try {
                     val bytes = library.file(item).readBytes()
-                    val result = StickerConverter.convertForPack(bytes, packAnimated = planned.animated)
+                    // già conforme al tipo del pack: si copiano i byte, senza ricodificare
+                    val result = StickerPassthrough.prepareForPack(bytes, packAnimated = planned.animated)
                     if (result.animated != planned.animated) {
                         failures.add(Failure(item.displayName, if (planned.animated) "non contiene un'animazione" else "risultato inatteso"))
                     } else {
