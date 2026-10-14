@@ -10,6 +10,7 @@ import com.whatik.image.ImageFormat
 import com.whatik.image.ImageKind
 import com.whatik.image.WebPContainer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -36,6 +37,14 @@ class StickerLibrary(context: Context) {
     private val _items = MutableStateFlow(loadIndex())
     val items: StateFlow<List<StickerItem>> = _items
 
+    // sha256 -> voce (la prima in elenco, come il vecchio firstOrNull): i doppioni si riconoscono senza
+    // scorrere l'indice a ogni file. Come _items si tocca solo sotto mutex.
+    private var byHash = indexByHash(_items.value)
+
+    // Voci aggiunte in memoria durante un'importazione in blocco e non ancora nell'indice su disco, e da quando.
+    private var unsaved = 0
+    private var oldestUnsavedNs = 0L
+
     sealed class ImportResult {
         class Added(val item: StickerItem) : ImportResult()
         class Duplicate(val item: StickerItem) : ImportResult()
@@ -50,25 +59,20 @@ class StickerLibrary(context: Context) {
 
     fun find(id: String): StickerItem? = _items.value.firstOrNull { it.id == id }
 
-    suspend fun importUris(uris: List<Uri>, source: String): ImportSummary = withContext(Dispatchers.IO) {
-        var added = 0
-        var duplicates = 0
-        val failed = ArrayList<ImportResult.Failed>()
-        for (uri in uris) {
-            when (val result = importUri(uri, source)) {
-                is ImportResult.Added -> added++
-                is ImportResult.Duplicate -> duplicates++
-                is ImportResult.Failed -> failed.add(result)
-            }
-        }
-        ImportSummary(added, duplicates, failed)
-    }
+    suspend fun importUris(uris: List<Uri>, source: String): ImportSummary = importDocuments(uris.map { it to null }, source)
 
-    suspend fun importUri(uri: Uri, source: String, displayNameHint: String? = null): ImportResult = withContext(Dispatchers.IO) {
+    /** Importazione in blocco di (uri, nome da mostrare): l'indice si salva a gruppi, non a ogni file. */
+    internal suspend fun importDocuments(documents: List<Pair<Uri, String?>>, source: String): ImportSummary =
+        importBatch(documents) { (uri, name) -> importUri(uri, source, name, deferSave = true) }
+
+    suspend fun importUri(uri: Uri, source: String, displayNameHint: String? = null): ImportResult =
+        importUri(uri, source, displayNameHint, deferSave = false)
+
+    private suspend fun importUri(uri: Uri, source: String, displayNameHint: String?, deferSave: Boolean): ImportResult = withContext(Dispatchers.IO) {
         val name = displayNameHint ?: queryDisplayName(uri) ?: uri.lastPathSegment ?: "sticker"
         try {
             val bytes = readBytes(uri) ?: return@withContext ImportResult.Failed(name, "Impossibile leggere il file")
-            importBytes(bytes, name, source)
+            importBytes(bytes, name, source, deferSave)
         } catch (e: SecurityException) {
             ImportResult.Failed(name, "Permesso negato")
         } catch (e: Exception) {
@@ -76,14 +80,22 @@ class StickerLibrary(context: Context) {
         }
     }
 
-    suspend fun importBytes(bytes: ByteArray, name: String, source: String): ImportResult = withContext(Dispatchers.IO) {
+    suspend fun importBytes(bytes: ByteArray, name: String, source: String): ImportResult =
+        importBytes(bytes, name, source, deferSave = false)
+
+    /**
+     * Con [deferSave] l'indice su disco non si riscrive a ogni file (O(N²) byte in un'importazione in
+     * blocco): la voce è subito in memoria e visibile, il salvataggio avviene ogni [SAVE_EVERY_FILES] voci
+     * o [SAVE_EVERY_MS] ms e alla fine del lotto ([importBatch]).
+     */
+    internal suspend fun importBytes(bytes: ByteArray, name: String, source: String, deferSave: Boolean): ImportResult = withContext(Dispatchers.IO) {
         if (bytes.isEmpty()) return@withContext ImportResult.Failed(name, "File vuoto")
         if (bytes.size > MAX_IMPORT_BYTES) return@withContext ImportResult.Failed(name, "File troppo grande (max 30 MB)")
         val kind = ImageFormat.sniff(bytes)
         val probe = probe(bytes, kind) ?: return@withContext ImportResult.Failed(name, "Non è un'immagine supportata")
         val hash = sha256(bytes)
         mutex.withLock {
-            _items.value.firstOrNull { it.sha256 == hash }?.let { return@withContext ImportResult.Duplicate(it) }
+            byHash[hash]?.let { return@withContext ImportResult.Duplicate(it) }
             val id = UUID.randomUUID().toString().replace("-", "")
             val fileName = "$id.${kind.extension.takeIf { kind != ImageKind.UNKNOWN } ?: "img"}"
             File(dir, fileName).writeBytes(bytes)
@@ -101,9 +113,57 @@ class StickerLibrary(context: Context) {
                 sha256 = hash,
             )
             val updated = listOf(item) + _items.value
-            saveIndex(updated)
-            _items.value = updated
+            if (deferSave) {
+                _items.value = updated
+                byHash[hash] = item
+                if (unsaved == 0) oldestUnsavedNs = System.nanoTime()
+                unsaved++
+                if (unsaved >= SAVE_EVERY_FILES || System.nanoTime() - oldestUnsavedNs >= SAVE_EVERY_MS * 1_000_000L) {
+                    // un errore qui non fa fallire il file: le voci restano in sospeso e si riprova al prossimo giro o a fine lotto
+                    try { saveIndex(updated) } catch (e: Exception) { /* vedi sopra */ }
+                }
+            } else {
+                saveIndex(updated)
+                _items.value = updated
+                byHash[hash] = item
+            }
             ImportResult.Added(item)
+        }
+    }
+
+    /**
+     * Esegue un lotto di importazioni con il salvataggio dell'indice rimandato ([importBytes] con deferSave).
+     * Anche se il lotto viene annullato o si interrompe, in `finally` l'indice viene scritto: i file già
+     * copiati non restano orfani. Un errore di scrittura finale non lancia, finisce fra i [ImportSummary.failed].
+     * Se il processo viene ucciso a metà, restano fuori dall'indice al più le ultime [SAVE_EVERY_FILES] voci
+     * (o quelle degli ultimi [SAVE_EVERY_MS] ms): file su disco, non elencati.
+     */
+    internal suspend fun <T> importBatch(entries: List<T>, importOne: suspend (T) -> ImportResult): ImportSummary = withContext(Dispatchers.IO) {
+        var added = 0
+        var duplicates = 0
+        val failed = ArrayList<ImportResult.Failed>()
+        try {
+            for (entry in entries) {
+                when (val result = importOne(entry)) {
+                    is ImportResult.Added -> added++
+                    is ImportResult.Duplicate -> duplicates++
+                    is ImportResult.Failed -> failed.add(result)
+                }
+            }
+        } finally {
+            withContext(NonCancellable) { flushIndex()?.let { failed.add(it) } }
+        }
+        ImportSummary(added, duplicates, failed)
+    }
+
+    /** Scrive l'indice se ci sono voci in sospeso; l'errore, se c'è, è restituito e non lanciato. */
+    private suspend fun flushIndex(): ImportResult.Failed? = mutex.withLock {
+        if (unsaved == 0) return@withLock null
+        try {
+            saveIndex(_items.value)
+            null
+        } catch (e: Exception) {
+            ImportResult.Failed(indexFile.name, e.message ?: "Errore sconosciuto")
         }
     }
 
@@ -111,17 +171,7 @@ class StickerLibrary(context: Context) {
     suspend fun importFolder(treeUri: Uri, source: String = "folder"): ImportSummary = withContext(Dispatchers.IO) {
         val uris = ArrayList<Pair<Uri, String>>()
         collectDocuments(treeUri, DocumentsContract.getTreeDocumentId(treeUri), uris, depth = 0)
-        var added = 0
-        var duplicates = 0
-        val failed = ArrayList<ImportResult.Failed>()
-        for ((uri, name) in uris) {
-            when (val result = importUri(uri, source, name)) {
-                is ImportResult.Added -> added++
-                is ImportResult.Duplicate -> duplicates++
-                is ImportResult.Failed -> failed.add(result)
-            }
-        }
-        ImportSummary(added, duplicates, failed)
+        importDocuments(uris, source)
     }
 
     private fun collectDocuments(treeUri: Uri, documentId: String, out: MutableList<Pair<Uri, String>>, depth: Int) {
@@ -153,6 +203,7 @@ class StickerLibrary(context: Context) {
             removed.forEach { File(dir, it.fileName).delete() }
             saveIndex(kept)
             _items.value = kept
+            byHash = indexByHash(kept)
         }
     }
 
@@ -215,12 +266,22 @@ class StickerLibrary(context: Context) {
             indexFile.writeText(tmp.readText())
             tmp.delete()
         }
+        unsaved = 0
+    }
+
+    private fun indexByHash(list: List<StickerItem>): HashMap<String, StickerItem> {
+        val map = HashMap<String, StickerItem>(list.size * 2)
+        for (item in list) map.putIfAbsent(item.sha256, item)
+        return map
     }
 
     companion object {
         const val MAX_IMPORT_BYTES = 30 * 1024 * 1024
         private const val MAX_FOLDER_DEPTH = 6
         private const val MAX_FOLDER_FILES = 2000
+        /** Importazione in blocco: l'indice si salva ogni tante voci o ogni tanti ms, per non perdere troppo se il processo muore. */
+        private const val SAVE_EVERY_FILES = 50
+        private const val SAVE_EVERY_MS = 2_000L
         private val IMAGE_EXTENSIONS = setOf("gif", "webp", "png", "jpg", "jpeg", "bmp", "heic", "heif")
 
         fun hasImageExtension(name: String): Boolean =
