@@ -5,10 +5,21 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
 }
 
 // Numero di build della CI (-PbuildNumber=N), mostrato nel versionName.
 val buildNumber: String = (project.findProperty("buildNumber") as String?) ?: "local"
+
+// Screenshot JVM delle schermate (Roborazzi + Robolectric, test in com.whatik.screenshots).
+// Restano fuori da `testDebugUnitTest` (quindi dalla CI): si attivano solo invocando uno dei task di Roborazzi
+//   ./gradlew --no-daemon recordRoborazziDebug     salva i PNG in app/build/outputs/roborazzi/
+//   ./gradlew --no-daemon compareRoborazziDebug    rifà gli scatti e li confronta con quelli salvati (aggiunge *_compare.png)
+//   ./gradlew --no-daemon verifyRoborazziDebug     come compare, ma fallisce se cambia qualcosa
+// oppure con -Pscreenshots (testDebugUnitTest esegue allora SOLO i test degli screenshot).
+val screenshotsEnabled: Boolean = project.hasProperty("screenshots") ||
+    gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
+        .any { it.startsWith("recordRoborazzi") || it.startsWith("compareRoborazzi") || it.startsWith("verifyRoborazzi") }
 
 // versionCode crescente nel tempo (minuti dal 1 gennaio 2026), uguale per CI e build locali:
 // qualunque build più recente aggiorna quella installata, purché firmata con la stessa chiave.
@@ -66,6 +77,25 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric legge risorse e manifest reali (servono solo ai test degli screenshot)
+            isIncludeAndroidResources = true
+            all { test ->
+                if (screenshotsEnabled) {
+                    test.include("**/screenshots/**")
+                    test.maxHeapSize = "2g"
+                    // Facoltativo: mirror di Maven Central da cui Robolectric scarica gli android-all
+                    // (-Probolectric.dependency.repo.url=<url>), utile se repo1.maven.org risponde 429.
+                    (project.findProperty("robolectric.dependency.repo.url") as String?)
+                        ?.let { url -> test.systemProperty("robolectric.dependency.repo.url", url) }
+                } else {
+                    test.exclude("**/screenshots/**")
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -88,4 +118,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
 }

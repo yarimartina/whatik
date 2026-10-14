@@ -57,6 +57,15 @@ Un tag `android-v*` (es. `android-v1.1.0`) crea inoltre una release con quel num
 ./gradlew testDebugUnitTest      # test unitari (decoder GIF, container WebP, pianificazione pack)
 ```
 
+Screenshot delle schermate (senza emulatore, su JVM con Roborazzi + Robolectric; non girano con `testDebugUnitTest` né in CI):
+
+```bash
+./gradlew --no-daemon recordRoborazziDebug    # PNG chiari e scuri 1080x2400 in app/build/outputs/roborazzi/
+./gradlew --no-daemon compareRoborazziDebug   # dopo una modifica grafica: confronta con i PNG salvati
+```
+
+Servono la prima volta gli `android-all` di Robolectric da Maven Central (se `repo1.maven.org` risponde 429 si può passare un mirror con `-Probolectric.dependency.repo.url=<url>`). I test sono in `app/src/test/java/com/whatik/screenshots`.
+
 Serve JDK 17+ e l'Android SDK (compileSdk 35). Con `-PbuildNumber=N` si imposta il `versionCode` (la CI usa il numero della run).
 
 ## Struttura
