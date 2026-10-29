@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -44,13 +45,16 @@ import com.whatik.image.WebPContainer
 import com.whatik.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -66,6 +70,8 @@ class CaptureService : Service() {
     private lateinit var handler: Handler
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** Pulizia dei file su IO: non si annulla con il servizio, così la cartella si svuota anche dopo onDestroy. */
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
@@ -102,6 +108,9 @@ class CaptureService : Service() {
     private var sessionDir: File? = null
     private val frameFiles = ArrayList<File>()
     private val frameTimes = ArrayList<Long>()
+    /** Bitmap della zona e buffer delle sue righe, riusati a ogni fotogramma; solo sul thread di cattura. */
+    private var frameBitmap: Bitmap? = null
+    private var frameBuffer: ByteBuffer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -508,22 +517,9 @@ class CaptureService : Service() {
             val now = SystemClock.elapsedRealtime()
             if (now - lastSampleAt < sampleIntervalMs) return
             lastSampleAt = now
-            val plane = image.planes[0]
-            val pixelStride = plane.pixelStride
-            val rowStride = plane.rowStride
-            val rowPadding = rowStride - pixelStride * image.width
-            val bitmap = Bitmap.createBitmap(image.width + rowPadding / pixelStride, image.height, Bitmap.Config.ARGB_8888)
-            bitmap.copyPixelsFromBuffer(plane.buffer)
-            val z = zone
-            val cropped = when {
-                z != null -> Bitmap.createBitmap(bitmap, z.left, z.top, z.width(), z.height())
-                rowPadding > 0 -> Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
-                else -> bitmap
-            }
+            val cropped = copyZone(image, zone ?: android.graphics.Rect(0, 0, image.width, image.height))
             val file = File(sessionDir, "f${frameFiles.size}.jpg")
             file.outputStream().use { cropped.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-            if (cropped !== bitmap) bitmap.recycle()
-            cropped.recycle()
             frameFiles.add(file)
             frameTimes.add(now - captureStartedAt)
             if (now - captureStartedAt >= captureDurationMs) finishCapture()
@@ -534,9 +530,55 @@ class CaptureService : Service() {
         }
     }
 
+    /**
+     * Copia la zona [z] del fotogramma nel bitmap riusato, riga per riga: stessi pixel del ritaglio
+     * di un bitmap a schermo intero (quindi stesso JPEG), senza allocare e copiare 18 MB a fotogramma.
+     */
+    private fun copyZone(image: Image, z: android.graphics.Rect): Bitmap {
+        val plane = image.planes[0]
+        val pixelStride = plane.pixelStride
+        val rowStride = plane.rowStride
+        val rowBytes = z.width() * pixelStride
+        // gli stessi limiti di createBitmap sul bitmap largo quanto una riga del buffer
+        require(z.left >= 0 && z.top >= 0 && !z.isEmpty && z.right * pixelStride <= rowStride && z.bottom <= image.height)
+        val bitmap = frameBitmap?.takeIf { it.width == z.width() && it.height == z.height() }
+            ?: Bitmap.createBitmap(z.width(), z.height(), Bitmap.Config.ARGB_8888).also {
+                frameBitmap?.recycle()
+                frameBitmap = it
+                frameBuffer = null
+            }
+        val src = plane.buffer
+        if (z.left == 0 && rowBytes == rowStride) {
+            // righe contigue (zona larga quanto lo schermo, senza padding): copia diretta
+            src.limit(z.bottom * rowStride)
+            src.position(z.top * rowStride)
+            bitmap.copyPixelsFromBuffer(src)
+            return bitmap
+        }
+        val rows = frameBuffer ?: ByteBuffer.allocateDirect(rowBytes * z.height()).also { frameBuffer = it }
+        rows.clear()
+        for (y in z.top until z.bottom) {
+            val start = y * rowStride + z.left * pixelStride
+            src.limit(start + rowBytes)
+            src.position(start)
+            rows.put(src)
+        }
+        rows.flip()
+        bitmap.copyPixelsFromBuffer(rows)
+        return bitmap
+    }
+
+    /** Libera bitmap e buffer della cattura; sul thread di cattura, l'unico che li usa. */
+    private fun releaseFrameBuffers() {
+        frameBitmap?.recycle()
+        frameBitmap = null
+        frameBuffer = null
+    }
+
     private fun finishCapture() {
         if (!capturing) return
         capturing = false
+        releaseFrameBuffers()
         val files = ArrayList(frameFiles)
         val times = ArrayList(frameTimes)
         val point = pointOfInterest
@@ -591,14 +633,18 @@ class CaptureService : Service() {
 
             // a schermo intero si ignorano le fasce di sistema; la zona ritagliata non ne ha
             val detectorParams = if (point == null) StickerDetector.Params(ignoreTopFraction = 0.06f, ignoreBottomFraction = 0.05f) else StickerDetector.Params()
-            val (grays, dims) = captured.grayFrames()
-            val proposals = if (files.size >= MIN_FRAMES) StickerDetector.detect(grays, dims.first, dims.second, times, detectorParams) else emptyList()
-            val (rgb, fw, fh) = captured.colorFrame()
+            // i grigi si decodificano solo con abbastanza fotogrammi, e non restano vivi dopo il rilevamento
+            val dims = captured.grayDimensions()
+            val proposals = if (files.size >= MIN_FRAMES) captured.detect(detectorParams) else emptyList()
+            // il primo fotogramma a colori si decodifica solo se serve (non con lo sticker riconosciuto da "Punta")
+            val color by lazy(LazyThreadSafetyMode.NONE) { captured.colorFrame() }
 
             // Il movimento da solo taglia gli sticker (si muove solo una parte): si allarga ai bordi
             // dello sticker fermo e si scartano le regioni evidentemente sbagliate.
-            fun refined(p: StickerDetector.Proposal, seed: IntArray?): CropSpec? =
-                StickerRefiner.refine(p.box, dims.first, dims.second, rgb, fw, fh, seed)
+            fun refined(p: StickerDetector.Proposal, seed: IntArray?): CropSpec? {
+                val (rgb, fw, fh) = color
+                return StickerRefiner.refine(p.box, dims.first, dims.second, rgb, fw, fh, seed)
+            }
 
             if (point == null) {
                 // tutto ciò che si muove
@@ -634,6 +680,8 @@ class CaptureService : Service() {
                     val slack = maxOf(cw, ch) / 4
                     point[0] in (l - slack)..(l + cw + slack) && point[1] in (t - slack)..(t + ch + slack)
                 }
+                // qui il colore serve comunque: per rifinire o per lo sticker fermo (staticCropAround lo riusa)
+                val (_, fw, fh) = color
                 val seed = intArrayOf(point[0] * fw / captured.width, point[1] * fh / captured.height)
                 val hitCrop = hit?.let { refined(it, seed) ?: it.crop }
                 if (hit != null && hitCrop != null) {
@@ -647,6 +695,8 @@ class CaptureService : Service() {
                 }
                 found = 1
             }
+            // fotogramma 0 e colore tenuti per i ritagli; se si esce prima con un errore li libera il GC
+            captured.close()
             CaptureOutcome(items, found, preview, animated)
         }
         files.forEach { it.delete() }
@@ -688,8 +738,7 @@ class CaptureService : Service() {
         val failures = ArrayList<String>()
         val captured = runCatching { CapturedFrames(files, times) }.getOrNull()
         val proposals = if (captured != null && files.size >= MIN_FRAMES) runCatching {
-            val (grays, dims) = captured.grayFrames()
-            StickerDetector.detect(grays, dims.first, dims.second, times, StickerDetector.Params())
+            captured.detect(StickerDetector.Params())
         }.getOrDefault(emptyList()) else emptyList()
 
         for ((i, tile) in tiles.withIndex()) {
@@ -726,6 +775,7 @@ class CaptureService : Service() {
                 failures.add("${i + 1}: ${e.message ?: e.javaClass.simpleName}")
             }
         }
+        captured?.close()
         files.forEach { it.delete() }
         withContext(Dispatchers.Main) {
             runCatching { lock?.hide() }
@@ -805,7 +855,19 @@ class CaptureService : Service() {
         dismissRadial()
         runCatching { lock?.hide() }
         lock = null
-        File(cacheDir, "capture").deleteRecursively()
+        // bitmap e buffer si liberano sul thread di cattura, che potrebbe ancora usarli
+        handler.post { releaseFrameBuffers() }
+        // la cartella delle catture si svuota su IO, e solo dopo le elaborazioni in corso che ne
+        // leggono ancora i fotogrammi; le sessioni iniziate dopo (nome = istante) non si toccano
+        val pending = scope.coroutineContext[Job]?.children?.toList().orEmpty()
+        val captureRoot = File(cacheDir, "capture")
+        val tornDownAt = System.currentTimeMillis()
+        cleanupScope.launch {
+            pending.joinAll()
+            captureRoot.listFiles()?.forEach { dir ->
+                if ((dir.name.toLongOrNull() ?: 0L) <= tornDownAt) dir.deleteRecursively()
+            }
+        }
         running.value = false
         status.value = getString(R.string.capture_status_stopped)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
