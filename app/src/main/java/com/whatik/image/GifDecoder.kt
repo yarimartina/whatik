@@ -29,6 +29,12 @@ class GifDecoder private constructor(private val data: ByteArray) {
     private var transparentIndex = -1
     private var delayMs = DEFAULT_DELAY_MS
 
+    // Buffer degli indici colore riusato fra i fotogrammi (un'istanza decodifica un solo file): evita di
+    // allocare w * h byte per ogni fotogramma, cioè quasi tutta la spazzatura della decodifica. Le tabelle LZW
+    // (24 KB) restano locali a decodeLzw: tenute in campi, il compilatore non ne conosce più la lunghezza,
+    // non elimina più i controlli sui limiti e la decodifica rallenta dell'8% circa (misurato sulla JVM).
+    private var indexBuffer = ByteArray(0)
+
     private fun readByte(): Int {
         if (pos >= data.size) throw GifFormatException("Fine inattesa del file GIF")
         return data[pos++].toInt() and 0xFF
@@ -132,10 +138,16 @@ class GifDecoder private constructor(private val data: ByteArray) {
         return keepGoing
     }
 
-    /** Decodifica LZW variabile come da specifica GIF; restituisce gli indici colore. */
+    /**
+     * Decodifica LZW variabile come da specifica GIF; restituisce gli indici colore. Il buffer restituito è
+     * [indexBuffer], riusato dal fotogramma successivo e a volte più grande di [pixelCount]: contano solo i
+     * primi [pixelCount] byte, e quelli non scritti dal flusso valgono 0 come in un array appena allocato.
+     */
     private fun decodeLzw(minCodeSize: Int, pixelCount: Int): ByteArray {
         if (minCodeSize < 2 || minCodeSize > 11) throw GifFormatException("Code size LZW non valido: $minCodeSize")
-        val out = ByteArray(pixelCount)
+        if (pixelCount < 0) throw NegativeArraySizeException(pixelCount.toString()) // w * h fuori scala, come ByteArray(pixelCount)
+        if (indexBuffer.size < pixelCount) indexBuffer = ByteArray(pixelCount)
+        val out = indexBuffer
         val clearCode = 1 shl minCodeSize
         val endCode = clearCode + 1
         var codeSize = minCodeSize + 1
@@ -240,6 +252,8 @@ class GifDecoder private constructor(private val data: ByteArray) {
             skip(blockRemaining)
             skipSubBlocks()
         }
+        // flusso finito o troncato prima di w * h pixel: i mancanti restano 0 anche nel buffer riusato
+        if (outPos < pixelCount) java.util.Arrays.fill(out, outPos, pixelCount, 0)
         return out
     }
 
@@ -247,11 +261,14 @@ class GifDecoder private constructor(private val data: ByteArray) {
         val canvas = IntArray(width * height)
         private var saved: IntArray? = null
         private var prevDisposal = 0
-        private var prevRect = intArrayOf(0, 0, 0, 0)
+        private var prevLeft = 0
+        private var prevTop = 0
+        private var prevW = 0
+        private var prevH = 0
 
         fun beforeFrame(nextDisposal: Int) {
             when (prevDisposal) {
-                2 -> clearRect(prevRect[0], prevRect[1], prevRect[2], prevRect[3])
+                2 -> clearRect(prevLeft, prevTop, prevW, prevH)
                 3 -> saved?.let { System.arraycopy(it, 0, canvas, 0, canvas.size) }
             }
             if (nextDisposal == 3) {
@@ -261,7 +278,10 @@ class GifDecoder private constructor(private val data: ByteArray) {
 
         fun afterFrame(disposal: Int, left: Int, top: Int, w: Int, h: Int) {
             prevDisposal = disposal
-            prevRect = intArrayOf(left, top, w, h)
+            prevLeft = left
+            prevTop = top
+            prevW = w
+            prevH = h
         }
 
         private fun clearRect(left: Int, top: Int, w: Int, h: Int) {
