@@ -22,6 +22,7 @@ link. Poi li converte nel formato di WhatsApp e gestisce i pack.
 | Correzioni build 14-15 | Riquadri allineati sui telefoni con foro fotocamera, file tagliate saltate, sfondo bianco reso trasparente | Da confermare sul telefono |
 | Punta sullo sticker | Il tocco trova la tessera (o lo sticker fermo) e la evidenzia con una cornice ai suoi bordi; il ritaglio è esattamente quello sticker | Da confermare sul telefono |
 | Bordi del pannello | Bande del colore del pannello tagliate via; sfondo trasparente solo per un soggetto unico, un meme tiene il suo sfondo | Verificato sul ritaglio del meme segnalato; da confermare sul telefono |
+| Ottimizzazioni (fase 1) | Export senza ricodificare gli sticker già conformi, codifica WebP in parallelo, fotogrammi decodificati e puliti una volta, copia della sola zona registrata, importazione in blocco con indice salvato a gruppi, istogrammi su array, GIF con buffer riusati, video letti in sequenza, editor con una sola decodifica, APK solo it/en | 140 test JVM verdi; tempi sul telefono da misurare |
 | Registrazione | Analisi automatica di un video registrato con il registratore di sistema | Validata su una registrazione reale |
 | Screenshot e editor | Ritaglio libero con maniglie (bordi, angoli, interno), pizzico, intervallo di tempo per gli animati | Funziona |
 | Link | URL diretto di un file o pagina da cui estrarre le immagini | Funziona sui file; le pagine TikTok spesso bloccano |
@@ -59,6 +60,17 @@ Il percorso di uno sticker catturato con "Tutti":
 - Rilevatore e griglia provati anche su materiale reale dell'utente, con harness fuori dal repository: una registrazione dello schermo e due screenshot del pannello.
 - I file WebP prodotti sono stati verificati con Pillow.
 - Prove sul telefono: un solo dispositivo Android, quello dell'utente. Le soglie sono tarate lì.
+
+## Ottimizzazioni: cosa provare sul telefono
+
+Dettagli e misure nel branch `android/feature/ottimizzazione` (fase 1 dell'analisi delle prestazioni).
+
+1. Tutti e Punta sullo stesso pannello: gli sticker fermi già presi devono risultare doppioni (stessi byte di prima); l'elaborazione di Tutti deve essere chiaramente più rapida.
+2. Crea pack con sticker animati già in libreria: WhatsApp li accetta, animano alla velocità giusta, l'icona del pack è corretta; l'esportazione è quasi istantanea.
+3. Analisi di una registrazione dello schermo: più veloce, proposte uguali a prima, colori corretti (in logcat il tag `WhatikVideo` compare solo se si è tornati al metodo vecchio).
+4. Editor su uno screenshot grande: si apre più in fretta; lo sticker creato è uguale.
+5. Importazione di una cartella con tante immagini: molto più veloce.
+6. Riavviare la sessione mentre Tutti sta elaborando: nessun crash, la cattura in corso finisce.
 
 ## Cose provate e tolte
 
