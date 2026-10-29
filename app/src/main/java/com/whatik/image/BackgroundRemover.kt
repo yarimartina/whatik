@@ -54,20 +54,27 @@ object BackgroundRemover {
         return if (white >= 3) 0xFFFFFF else null
     }
 
-    /** Colore dominante del bordo (media del gruppo più numeroso), null se non copre [Params.minEdgeFraction] del bordo. */
+    /**
+     * Colore dominante del bordo (media del gruppo più numeroso), null se non copre [Params.minEdgeFraction] del bordo.
+     * Istogramma su un array a 12 bit (4 bit per canale); a parità di conteggio vince il gruppo con la chiave più
+     * bassa (con la vecchia HashMap, il primo nell'ordine di iterazione).
+     */
     fun edgeBackground(argb: IntArray, width: Int, height: Int, params: Params = Params()): Int? {
-        val bins = HashMap<Int, LongArray>()
+        val counts = IntArray(EDGE_BINS)
         var total = 0
+        forEachEdge(width, height) { p -> counts[edgeBin(argb[p])]++; total++ }
+        var best = -1
+        var bestCount = 0
+        for (bin in counts.indices) if (counts[bin] > bestCount) { bestCount = counts[bin]; best = bin }
+        if (best < 0) return null
+        if (bestCount.toFloat() / total < params.minEdgeFraction) return null
+        // seconda passata solo sui pixel del gruppo vincente
+        var r = 0L; var g = 0L; var b = 0L
         forEachEdge(width, height) { p ->
             val c = argb[p]
-            val bin = ((c shr 20) and 0xF shl 8) or ((c shr 12) and 0xF shl 4) or ((c shr 4) and 0xF)
-            val acc = bins.getOrPut(bin) { LongArray(4) }
-            acc[0]++; acc[1] += red(c); acc[2] += green(c); acc[3] += blue(c)
-            total++
+            if (edgeBin(c) == best) { r += red(c); g += green(c); b += blue(c) }
         }
-        val best = bins.values.maxByOrNull { it[0] } ?: return null
-        if (best[0].toFloat() / total < params.minEdgeFraction) return null
-        return rgb((best[1] / best[0]).toInt(), (best[2] / best[0]).toInt(), (best[3] / best[0]).toInt())
+        return rgb((r / bestCount).toInt(), (g / bestCount).toInt(), (b / bestCount).toInt())
     }
 
     /**
@@ -213,6 +220,11 @@ object BackgroundRemover {
         for (x in 0 until width) { visit(x); if (height > 1) visit((height - 1) * width + x) }
         for (y in 1 until height - 1) { visit(y * width); if (width > 1) visit(y * width + width - 1) }
     }
+
+    /** Colori del bordo quantizzati a 4 bit per canale: 4096 gruppi. */
+    private const val EDGE_BINS = 1 shl 12
+
+    private fun edgeBin(c: Int): Int = ((c shr 20) and 0xF shl 8) or ((c shr 12) and 0xF shl 4) or ((c shr 4) and 0xF)
 
     private fun distance(c: Int, bg: Int): Int = max(abs(red(c) - red(bg)), max(abs(green(c) - green(bg)), abs(blue(c) - blue(bg))))
     private fun near(c: Int, bg: Int, tolerance: Int): Boolean = distance(c, bg) <= tolerance

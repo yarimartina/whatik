@@ -1,5 +1,6 @@
 package com.whatik.image
 
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -146,5 +147,56 @@ class BackgroundRemoverTest {
         val u = BackgroundRemover.union(intArrayOf(10, 10, 10, 10), intArrayOf(15, 5, 10, 10))
         assertNotNull(u)
         assertEquals(10, u[0]); assertEquals(5, u[1]); assertEquals(15, u[2]); assertEquals(15, u[3])
+    }
+
+    // ---------------------------------------------------------------- istogramma su array (parità con la HashMap)
+
+    @Test
+    fun edgeBackgroundMatchesTheHashMapVersion() {
+        // Stesso colore (o stesso null) di prima ovunque il gruppo dominante del bordo è uno solo; a pari conteggio
+        // vince la chiave quantizzata più bassa (prima: il primo nell'ordine di iterazione della HashMap).
+        var cases = 0; var tied = 0; var changed = 0
+        for (seed in 1..8) for (img in ParityImages.suite(seed)) for (fraction in floatArrayOf(0.3f, 0f, 0.9f)) {
+            val old = LegacyHistograms.edgeBackground(img.rgb, img.w, img.h, fraction)!!
+            val now = BackgroundRemover.edgeBackground(img.rgb, img.w, img.h, BackgroundRemover.Params(minEdgeFraction = fraction))
+            val label = "${img.name} seed $seed fraction $fraction"
+            assertEquals(label, old.lowestKey, now)
+            cases++
+            if (old.tied == 1) assertEquals(label, old.old, now) else { tied++; if (old.old != old.lowestKey) changed++ }
+        }
+        println("BackgroundRemover.edgeBackground: $cases casi, $tied con parità esatta, $changed in cui la regola cambia il colore")
+        assertTrue("servono casi con e senza parità", tied > 0 && tied < cases)
+    }
+
+    @Test
+    fun edgeBackgroundOfDegenerateFramesMatchesTheHashMapVersion() {
+        val rnd = Random(8)
+        for ((fw, fh) in listOf(1 to 1, 1 to 20, 20 to 1, 2 to 2, 3 to 2, 2 to 3, 0 to 5, 5 to 0)) {
+            val img = IntArray(fw * fh) { rnd.nextInt() or (0xFF shl 24) }
+            val old = LegacyHistograms.edgeBackground(img, fw, fh, 0.3f)
+            val now = BackgroundRemover.edgeBackground(img, fw, fh)
+            assertEquals("${fw}x$fh", old?.lowestKey, now)
+            if (old != null && old.tied == 1) assertEquals("${fw}x$fh", old.old, now)
+        }
+    }
+
+    @Test
+    fun tieBetweenTwoEdgeColorsGoesToTheLowestQuantizedColor() {
+        val low = 0xFF102030.toInt()
+        val high = 0xFFE0D0C0.toInt()
+        for (swap in listOf(false, true)) {
+            // metà sinistra e metà destra del bordo: stesso numero di pixel per colore
+            val img = IntArray(40 * 30) { p -> if ((p % 40 < 20) != swap) low else high }
+            assertEquals(0x102030, BackgroundRemover.edgeBackground(img, 40, 30))
+        }
+    }
+
+    @Test
+    fun resolveBackgroundWithoutHintStillGivesWhiteForAWhiteBorderAndNullForAMessyOne() {
+        val clean = IntArray(50 * 50) { 0xFFFFFFFF.toInt() }
+        assertEquals(0xFFFFFF, BackgroundRemover.resolveBackground(clean, 50, 50, null))
+        val rnd = Random(4)
+        val messy = IntArray(50 * 50) { rnd.nextInt() or (0xFF shl 24) }
+        assertNull(BackgroundRemover.resolveBackground(messy, 50, 50, null))
     }
 }

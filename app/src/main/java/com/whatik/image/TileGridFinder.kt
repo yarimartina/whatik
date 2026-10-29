@@ -43,16 +43,7 @@ object TileGridFinder {
 
     fun analyze(rgb: IntArray, width: Int, height: Int, params: Params = Params()): Result {
         // 1) sfondo del pannello: colore piu' frequente nella parte bassa del fotogramma
-        val counts = HashMap<Int, LongArray>()
-        val fromY = (height * (1f - params.panelFraction)).roundToInt().coerceIn(0, height - 1)
-        for (y in fromY until height) for (x in 0 until width) {
-            val c = rgb[y * width + x]
-            val acc = counts.getOrPut(quantize(c)) { LongArray(4) }
-            acc[0]++; acc[1] += ((c shr 16) and 0xFF).toLong(); acc[2] += ((c shr 8) and 0xFF).toLong(); acc[3] += (c and 0xFF).toLong()
-        }
-        // colore del pannello: media dei pixel del gruppo più frequente (serve preciso per togliere le bande)
-        val mode = counts.values.maxByOrNull { it[0] } ?: return Result(emptyList(), 0xFFFFFF, 0)
-        val bg = (((mode[1] / mode[0]).toInt()) shl 16) or (((mode[2] / mode[0]).toInt()) shl 8) or ((mode[3] / mode[0]).toInt())
+        val bg = panelBackground(rgb, width, height, params.panelFraction) ?: return Result(emptyList(), 0xFFFFFF, 0)
 
         // 2) maschera dei pixel non sfondo, con una leggera dilatazione per chiudere i buchi
         val mask = BooleanArray(width * height)
@@ -112,6 +103,37 @@ object TileGridFinder {
         return Result(sorted, bg, cut)
     }
 
+    /**
+     * Colore del pannello: media (RGB) dei pixel del gruppo di colori quantizzati più frequente nella frazione
+     * [panelFraction] inferiore del fotogramma (serve preciso per togliere le bande). Null se non ci sono pixel.
+     * Istogramma su un array indicizzato dal colore a 15 bit, senza boxing per pixel; a parità di conteggio fra
+     * due gruppi vince quello con la chiave quantizzata più bassa (con la vecchia HashMap vinceva il primo
+     * nell'ordine di iterazione, cioè uno qualsiasi dei due).
+     */
+    internal fun panelBackground(rgb: IntArray, width: Int, height: Int, panelFraction: Float): Int? {
+        val fromY = (height * (1f - panelFraction)).roundToInt().coerceIn(0, height - 1)
+        val counts = IntArray(QUANT_BINS)
+        for (y in fromY until height) {
+            val row = y * width
+            for (x in 0 until width) counts[quantize(rgb[row + x])]++
+        }
+        var mode = -1
+        var modeCount = 0
+        for (q in counts.indices) if (counts[q] > modeCount) { modeCount = counts[q]; mode = q }
+        if (mode < 0) return null
+        // seconda passata solo sui pixel del gruppo vincente: somme in Long come prima
+        var r = 0L; var g = 0L; var b = 0L
+        for (y in fromY until height) {
+            val row = y * width
+            for (x in 0 until width) {
+                val c = rgb[row + x]
+                if (quantize(c) != mode) continue
+                r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF
+            }
+        }
+        return (((r / modeCount).toInt()) shl 16) or (((g / modeCount).toInt()) shl 8) or ((b / modeCount).toInt())
+    }
+
     /** Inserisce le posizioni di griglia mancanti che contengono abbastanza contenuto non-sfondo. */
     internal fun completeGrid(tiles: List<IntArray>, mask: BooleanArray, width: Int, height: Int, border: Int, params: Params): List<IntArray> {
         val size = tiles.map { max(it[2], it[3]) }.sorted().let { it[it.size / 2] }
@@ -166,6 +188,9 @@ object TileGridFinder {
         }
         return if (total == 0) 0f else count.toFloat() / total
     }
+
+    /** Colori quantizzati a 5 bit per canale: 32768 gruppi. */
+    private const val QUANT_BINS = 1 shl 15
 
     private fun quantize(c: Int): Int = ((c shr 19) and 0x1F shl 10) or ((c shr 11) and 0x1F shl 5) or ((c shr 3) and 0x1F)
 

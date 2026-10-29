@@ -1,5 +1,6 @@
 package com.whatik.image
 
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -105,5 +106,57 @@ class TileGridFinderTest {
     fun noTilesWithoutAPanel() {
         val img = IntArray(w * h) { dark }
         assertTrue(TileGridFinder.find(img, w, h).isEmpty())
+    }
+
+    // ---------------------------------------------------------------- istogramma su array (parità con la HashMap)
+
+    @Test
+    fun panelBackgroundMatchesTheHashMapVersion() {
+        // Il colore del pannello deve essere quello di prima ovunque il gruppo più frequente è uno solo; a pari
+        // conteggio vince la chiave quantizzata più bassa (prima: il primo nell'ordine di iterazione della HashMap).
+        var cases = 0; var tied = 0; var changed = 0
+        for (seed in 1..8) for (img in ParityImages.suite(seed)) for (fraction in floatArrayOf(0.6f, 0.25f, 1f)) {
+            val old = LegacyHistograms.panelBackground(img.rgb, img.w, img.h, fraction)
+            val now = TileGridFinder.panelBackground(img.rgb, img.w, img.h, fraction)
+            val label = "${img.name} seed $seed fraction $fraction"
+            assertEquals(label, old?.lowestKey, now)
+            if (old == null) continue
+            cases++
+            if (old.tied == 1) assertEquals(label, old.old, now) else { tied++; if (old.old != old.lowestKey) changed++ }
+        }
+        println("TileGridFinder.panelBackground: $cases casi, $tied con parità esatta, $changed in cui la regola cambia il colore")
+        assertTrue("servono casi con e senza parità", tied > 0 && tied < cases)
+    }
+
+    @Test
+    fun analyzeKeepsThePanelColorOfTheHashMapVersionOnTikTokLikeScreens() {
+        for (seed in 1..6) {
+            val img = ParityImages.suite(seed).first { it.name == "tiktokLike 160x213" }
+            val old = LegacyHistograms.panelBackground(img.rgb, img.w, img.h, 0.6f)!!
+            assertEquals(1, old.tied)
+            assertEquals(old.old, TileGridFinder.analyze(img.rgb, img.w, img.h).background)
+        }
+    }
+
+    @Test
+    fun emptyPanelFractionOrWidthGivesNoBackground() {
+        assertEquals(null, TileGridFinder.panelBackground(IntArray(0), 0, 5, 0.6f))
+        val r = TileGridFinder.analyze(IntArray(0), 0, 5)
+        assertTrue(r.tiles.isEmpty())
+        assertEquals(0xFFFFFF, r.background)
+    }
+
+    @Test
+    fun tieBetweenTwoPanelColorsGoesToTheLowestQuantizedColor() {
+        val low = 0xFF102030.toInt()
+        val high = 0xFFE0D0C0.toInt()
+        for (swap in listOf(false, true)) {
+            // metà sinistra e metà destra della parte bassa hanno colori diversi e lo stesso numero di pixel
+            val img = IntArray(40 * 50) { p -> if ((p % 40 < 20) != swap) low else high }
+            assertEquals(0x102030, TileGridFinder.panelBackground(img, 40, 50, 0.6f))
+        }
+        val rnd = Random(3)
+        val noisy = IntArray(40 * 50) { rnd.nextInt() or (0xFF shl 24) } // quasi tutti i gruppi a pari conteggio
+        assertEquals(TileGridFinder.panelBackground(noisy, 40, 50, 0.6f), TileGridFinder.panelBackground(noisy.copyOf(), 40, 50, 0.6f))
     }
 }
