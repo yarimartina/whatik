@@ -57,14 +57,8 @@ object StaticStickerFinder {
 
         // 1) colore di sfondo: moda dei colori quantizzati sull'anello esterno della finestra
         val ring = max(2, (min(ww, wh) * params.ringFraction).roundToInt())
-        val counts = HashMap<Int, Int>()
-        for (y in wt..wb) for (x in wl..wr) {
-            val onRing = x < wl + ring || x > wr - ring || y < wt + ring || y > wb - ring
-            if (!onRing) continue
-            val q = quantize(rgb[y * width + x])
-            counts[q] = (counts[q] ?: 0) + 1
-        }
-        val bgQ = counts.maxByOrNull { it.value }?.key ?: return fallback(width, height, x0, y0, params)
+        val bgQ = ringMode(rgb, width, wl, wt, wr, wb, ring)
+        if (bgQ < 0) return fallback(width, height, x0, y0, params)
         val bg = dequantize(bgQ)
 
         // 2) maschera dei pixel "non sfondo" nella finestra
@@ -117,12 +111,38 @@ object StaticStickerFinder {
         return CropSpec.square((l + w / 2f) / width, (t + h / 2f) / height, side / min(width, height), width, height)
     }
 
+    /**
+     * Colore quantizzato (15 bit) più frequente sull'anello di spessore [ring] della finestra [wl..wr] x [wt..wb],
+     * -1 se l'anello è vuoto. Istogramma su un array, senza boxing per pixel; a parità di conteggio vince il
+     * colore con la chiave più bassa (con la vecchia HashMap vinceva il primo nell'ordine di iterazione).
+     */
+    internal fun ringMode(rgb: IntArray, width: Int, wl: Int, wt: Int, wr: Int, wb: Int, ring: Int): Int {
+        val counts = IntArray(QUANT_BINS)
+        for (y in wt..wb) {
+            val row = y * width
+            if (y < wt + ring || y > wb - ring) {
+                for (x in wl..wr) counts[quantize(rgb[row + x])]++
+            } else {
+                // righe interne: solo le due colonne dell'anello (senza contare due volte se si toccano)
+                for (x in wl..minOf(wl + ring - 1, wr)) counts[quantize(rgb[row + x])]++
+                for (x in maxOf(wr - ring + 1, wl + ring)..wr) counts[quantize(rgb[row + x])]++
+            }
+        }
+        var mode = -1
+        var modeCount = 0
+        for (q in counts.indices) if (counts[q] > modeCount) { modeCount = counts[q]; mode = q }
+        return mode
+    }
+
     private fun fallback(width: Int, height: Int, x: Int, y: Int, params: Params): Result {
         val side = (width * params.fallbackFraction).roundToInt().coerceIn(8, min(width, height))
         val left = (x - side / 2).coerceIn(0, width - side)
         val top = (y - side / 2).coerceIn(0, height - side)
         return Result(intArrayOf(left, top, side, side), found = false)
     }
+
+    /** Colori quantizzati a 5 bit per canale: 32768 gruppi. */
+    private const val QUANT_BINS = 1 shl 15
 
     private fun quantize(c: Int): Int = ((c shr 19) and 0x1F shl 10) or ((c shr 11) and 0x1F shl 5) or ((c shr 3) and 0x1F)
 

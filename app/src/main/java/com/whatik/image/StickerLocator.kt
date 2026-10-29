@@ -56,20 +56,38 @@ object StickerLocator {
         return Located(still.box.copyOf(), ringColor(rgb, width, height, l, t, w, h), false)
     }
 
-    /** Colore più frequente nell'anello di 3 pixel appena fuori dal riquadro. */
-    private fun ringColor(rgb: IntArray, width: Int, height: Int, l: Int, t: Int, w: Int, h: Int): Int? {
+    /**
+     * Colore più frequente nell'anello di 3 pixel appena fuori dal riquadro (media del gruppo quantizzato più
+     * numeroso), null se l'anello è vuoto. Istogramma su un array a 15 bit; a parità di conteggio vince il
+     * gruppo con la chiave quantizzata più bassa (con la vecchia HashMap, il primo nell'ordine di iterazione).
+     */
+    internal fun ringColor(rgb: IntArray, width: Int, height: Int, l: Int, t: Int, w: Int, h: Int): Int? {
         val ring = 3
-        val counts = HashMap<Int, IntArray>()
+        val counts = IntArray(QUANT_BINS)
+        forEachRingPixel(rgb, width, height, l, t, w, h, ring) { c -> counts[quantize(c)]++ }
+        var best = -1
+        var bestCount = 0
+        for (q in counts.indices) if (counts[q] > bestCount) { bestCount = counts[q]; best = q }
+        if (best < 0) return null
+        // seconda passata solo sui pixel del gruppo vincente
+        var r = 0; var g = 0; var b = 0
+        forEachRingPixel(rgb, width, height, l, t, w, h, ring) { c ->
+            if (quantize(c) == best) { r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF }
+        }
+        return ((r / bestCount) shl 16) or ((g / bestCount) shl 8) or (b / bestCount)
+    }
+
+    private inline fun forEachRingPixel(rgb: IntArray, width: Int, height: Int, l: Int, t: Int, w: Int, h: Int, ring: Int, visit: (Int) -> Unit) {
         for (yy in (t - ring).coerceAtLeast(0) until (t + h + ring).coerceAtMost(height)) {
             for (xx in (l - ring).coerceAtLeast(0) until (l + w + ring).coerceAtMost(width)) {
                 if (xx in l until l + w && yy in t until t + h) continue
-                val c = rgb[yy * width + xx]
-                val q = ((c shr 19) and 0x1F shl 10) or ((c shr 11) and 0x1F shl 5) or ((c shr 3) and 0x1F)
-                val acc = counts.getOrPut(q) { IntArray(4) }
-                acc[0]++; acc[1] += (c shr 16) and 0xFF; acc[2] += (c shr 8) and 0xFF; acc[3] += c and 0xFF
+                visit(rgb[yy * width + xx])
             }
         }
-        val best = counts.values.maxByOrNull { it[0] } ?: return null
-        return ((best[1] / best[0]) shl 16) or ((best[2] / best[0]) shl 8) or (best[3] / best[0])
     }
+
+    /** Colori quantizzati a 5 bit per canale: 32768 gruppi. */
+    private const val QUANT_BINS = 1 shl 15
+
+    private fun quantize(c: Int): Int = ((c shr 19) and 0x1F shl 10) or ((c shr 11) and 0x1F shl 5) or ((c shr 3) and 0x1F)
 }

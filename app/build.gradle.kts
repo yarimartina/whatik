@@ -25,6 +25,10 @@ android {
         targetSdk = 35
         versionCode = computedVersionCode
         versionName = "1.0.$buildNumber"
+
+        // L'app esiste solo in italiano e inglese: le altre lingue arrivano dalle librerie androidx (92 configurazioni
+        // in resources.arsc) e pesano 187 KB nell'APK release. Da AGP 8.8 si scrive androidResources { localeFilters += ... }.
+        resourceConfigurations += listOf("it", "en")
     }
 
     signingConfigs {
