@@ -8,6 +8,18 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.FutureTask
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.Semaphore
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Converte qualunque immagine (PNG, JPEG, GIF, WebP, anche animati) in uno sticker
@@ -151,24 +163,120 @@ object StickerConverter {
         return result
     }
 
+    /**
+     * Decodifica e adattamento restano in sequenza sul thread chiamante; la codifica WebP di ogni
+     * fotogramma va ai worker. I byte sono gli stessi della codifica in sequenza: stesso bitmap,
+     * stesse impostazioni e risultati raccolti nell'ordine dei fotogrammi.
+     */
     private fun encodePass(producer: FrameProducer, kept: List<Int>, quality: Int): List<ByteArray> {
         val keptSet = kept.toHashSet()
         val lastKept = kept.last()
-        val out = ArrayList<ByteArray>(kept.size)
-        producer.produce { index, frame ->
-            if (index in keptSet) {
-                val fitted = fitToCanvas(frame, STICKER_SIZE)
-                try {
-                    out.add(encodeWebP(fitted, quality, lossless = false))
-                } finally {
-                    fitted.recycle()
-                }
+        // un bitmap adattato pronto in coda oltre a quelli in codifica
+        val encoder = OrderedEncoder<Bitmap>(
+            encodeExecutor, encodeWorkers + 1,
+            encode = { encodeWebP(it, quality, lossless = false) },
+            release = { it.recycle() },
+        )
+        try {
+            producer.produce { index, frame ->
+                if (index in keptSet && !encoder.failed) encoder.submit { fitToCanvas(frame, STICKER_SIZE) }
+                frame.recycle()
+                index < lastKept && !encoder.failed
             }
-            frame.recycle()
-            index < lastKept
+        } catch (e: Throwable) {
+            encoder.abort()
+            throw e
         }
+        val out = encoder.await()
         if (out.size != kept.size) throw ConversionException("Decodificati ${out.size} fotogrammi su ${kept.size}")
         return out
+    }
+
+    // ---------------------------------------------------------------- codifica in parallelo
+
+    /** Thread di codifica: uno resta al thread che decodifica i fotogrammi, al massimo 4. */
+    private val encodeWorkers = (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 4)
+
+    /** Pool condiviso dalle conversioni; i thread si chiudono dopo 30 s di inattività. */
+    private val encodeExecutor: ExecutorService by lazy {
+        val count = AtomicInteger()
+        ThreadPoolExecutor(encodeWorkers, encodeWorkers, 30, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>()) { task ->
+            Thread(task, "whatik-webp-${count.incrementAndGet()}").apply {
+                isDaemon = true
+                priority = Thread.NORM_PRIORITY
+            }
+        }.apply { allowCoreThreadTimeOut(true) }
+    }
+
+    /**
+     * Codifica in parallelo elementi preparati in sequenza e restituisce i risultati nell'ordine
+     * di invio. Al massimo [maxInFlight] elementi sono vivi insieme (preparati e non ancora
+     * rilasciati): [submit] aspetta un posto libero prima di prepararne un altro. Ogni elemento
+     * viene rilasciato una sola volta dal worker, anche se la codifica fallisce o viene saltata.
+     */
+    internal class OrderedEncoder<T>(
+        private val executor: Executor,
+        maxInFlight: Int,
+        private val encode: (T) -> ByteArray,
+        private val release: (T) -> Unit,
+    ) {
+        private val slots = Semaphore(maxInFlight)
+        private val tasks = ArrayList<FutureTask<ByteArray?>>()
+        private val aborted = AtomicBoolean(false)
+
+        /** true dopo un errore, di un worker o del chiamante: i lavori ancora in coda vengono saltati. */
+        val failed: Boolean get() = aborted.get()
+
+        /** Prepara un elemento sul thread chiamante, appena c'è posto, e lo accoda per la codifica. */
+        fun submit(prepare: () -> T) {
+            slots.acquire()
+            val item = try {
+                prepare()
+            } catch (e: Throwable) {
+                slots.release()
+                throw e
+            }
+            val task = FutureTask(Callable<ByteArray?> {
+                try {
+                    if (aborted.get()) null else encode(item)
+                } catch (e: Throwable) {
+                    aborted.set(true)
+                    throw e
+                } finally {
+                    release(item)
+                    slots.release()
+                }
+            })
+            try {
+                executor.execute(task)
+            } catch (e: RejectedExecutionException) {
+                aborted.set(true)
+                release(item)
+                slots.release()
+                throw e
+            }
+            tasks.add(task)
+        }
+
+        fun abort() = aborted.set(true)
+
+        /** Aspetta tutti i lavori (così ogni elemento è già rilasciato) e rilancia il primo errore. */
+        fun await(): List<ByteArray> {
+            val out = ArrayList<ByteArray>(tasks.size)
+            var error: Throwable? = null
+            for (task in tasks) {
+                try {
+                    task.get()?.let { out.add(it) }
+                } catch (e: ExecutionException) {
+                    if (error == null) error = e.cause ?: e
+                } catch (e: InterruptedException) {
+                    abort()
+                    throw e
+                }
+            }
+            error?.let { throw it }
+            return out
+        }
     }
 
     // ---------------------------------------------------------------- icona
