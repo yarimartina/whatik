@@ -44,12 +44,18 @@ object WhatsAppBridge {
         }
     }
 
-    /** true se almeno una delle app WhatsApp installate ha già il pack tra i propri sticker. */
-    fun isPackAdded(context: Context, identifier: String): Boolean {
+    /** App WhatsApp installate e abilitate, nell'ordine consumer, Business. */
+    fun installedPackages(context: Context): List<String> =
+        listOf(PACKAGE_CONSUMER, PACKAGE_BUSINESS).filter { isInstalled(context, it) }
+
+    /**
+     * true se almeno una delle app WhatsApp installate ha già il pack tra i propri sticker.
+     * Controllando più pack, [installed] si calcola una volta con [installedPackages]:
+     * altrimenti ogni pack costa due getApplicationInfo (IPC verso il PackageManager).
+     */
+    fun isPackAdded(context: Context, identifier: String, installed: List<String> = installedPackages(context)): Boolean {
         val authority = authority(context)
-        return listOf(PACKAGE_CONSUMER, PACKAGE_BUSINESS)
-            .filter { isInstalled(context, it) }
-            .any { isWhitelisted(context, it, authority, identifier) }
+        return installed.any { isWhitelisted(context, it, authority, identifier) }
     }
 
     private fun isWhitelisted(context: Context, whatsAppPackage: String, authority: String, identifier: String): Boolean {
