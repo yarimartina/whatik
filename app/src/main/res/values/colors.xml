@@ -1,4 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FE2C55</color>
+
+    <!-- Fondo della finestra prima che Compose disegni (android:windowBackground): surface del tema -->
+    <color name="window_background">#FFF8F7</color>
+
+    <!--
+        Overlay sopra TikTok (View classiche): colori fissi, indipendenti dal tema chiaro/scuro.
+        Audit UX 3.2.1 e 3.4; contrasti indicati nel commento di ogni colore.
+    -->
+    <!-- Bolla a riposo, pulsanti «Punta» e «Tutti» (icona bianca 3,68:1, solo grafica) -->
+    <color name="overlay_brand">#FFFE2C55</color>
+    <!-- Pillole: mirino, blocco, conferma, esito (testo bianco 14,35:1) -->
+    <color name="overlay_surface">#E6121212</color>
+    <!-- Testo principale sulle pillole -->
+    <color name="overlay_on_surface">#FFFFFFFF</color>
+    <!-- Testo secondario sulle pillole (7,81:1) -->
+    <color name="overlay_on_surface_muted">#B3FFFFFF</color>
+    <!-- Sfondo del menu circolare -->
+    <color name="overlay_scrim">#66000000</color>
+    <!-- Oscuramento dello schermo bloccato durante la registrazione -->
+    <color name="overlay_dim">#99000000</color>
+    <!-- «Termina», «Annulla» (bianco 11,37:1) -->
+    <color name="overlay_neutral">#FF3A3A3A</color>
+    <!-- Bolla in elaborazione (bianco 7,24:1) -->
+    <color name="overlay_processing">#FF455A64</color>
+    <!-- Bolla «+n» (bianco 7,87:1) -->
+    <color name="overlay_success">#FF1B5E20</color>
+    <!-- Bolla «!» (bianco 6,54:1) -->
+    <color name="overlay_error">#FFB3261E</color>
+    <!-- Contatore della sessione sulla bolla (18,73:1) -->
+    <color name="overlay_badge_bg">#FFFFFFFF</color>
+    <color name="overlay_badge_text">#FF121212</color>
+    <!-- Barra del conto alla rovescia (5,41:1) -->
+    <color name="overlay_progress_track">#4DFFFFFF</color>
+    <color name="overlay_progress_fill">#FFFFFFFF</color>
+    <!-- Cornice attorno allo sticker inquadrato (21:1 sull'oscurato) -->
+    <color name="overlay_frame">#FFFFFFFF</color>
+    <!-- Tessere già elaborate (riempimento, con spunta bianca) -->
+    <color name="overlay_tile_done">#5522AA55</color>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fondo della finestra nel tema scuro: surface del tema scuro -->
+    <color name="window_background">#1A1112</color>
+</resources>

@@ -3,10 +3,10 @@
     <string name="app_name">Whatik</string>
     <string name="share_target_label">Salva in Whatik</string>
 
-    <string name="title_library">Whatik</string>
+    <string name="title_library">Libreria</string>
     <string name="title_selected">%d selezionati</string>
-    <string name="title_scan">Sticker sul telefono</string>
-    <string name="title_packs">I tuoi pack</string>
+    <string name="title_scan">Cerca sul telefono</string>
+    <string name="title_packs">Pack</string>
 
     <string name="action_import">Importa sticker</string>
     <string name="action_capture">Cattura automatica da TikTok</string>
@@ -17,7 +17,7 @@
     <string name="info_title">Whatik</string>
     <string name="info_version">Versione %1$s (codice %2$d)</string>
     <string name="info_signature">Firma installata: %s</string>
-    <string name="info_update_hint">Se un aggiornamento non si installa, l\'app sul telefono è stata firmata con un\'altra chiave (succede con le primissime build): disinstallala una volta e reinstalla dal link. Da lì in poi gli aggiornamenti funzionano, perché ogni build ha la stessa firma e un numero di versione sempre crescente.</string>
+    <string name="info_update_hint">Se un aggiornamento non si installa, disinstalla l\'app una volta e reinstallala dal link: da lì in poi gli aggiornamenti funzionano.</string>
     <string name="info_longpress_hint">Tieni premuto uno sticker nella libreria per ritagliarlo o accorciarne l\'animazione.</string>
     <string name="action_import_gallery">Dalla galleria</string>
     <string name="action_import_files">Da file</string>
@@ -30,35 +30,35 @@
     <string name="action_cancel">Annulla</string>
     <string name="action_ok">OK</string>
     <string name="action_back">Indietro</string>
-    <string name="action_export">Copia su WhatsApp (%d)</string>
-    <string name="action_convert">Converti</string>
+    <string name="action_export">Crea pack (%d)</string>
+    <string name="action_convert">Crea pack</string>
     <string name="action_add_to_whatsapp">Aggiungi a WhatsApp</string>
-    <string name="action_reopen_whatsapp">Riapri su WhatsApp</string>
+    <string name="action_reopen_whatsapp">Apri in WhatsApp</string>
     <string name="action_import_count">Importa (%d)</string>
     <string name="action_grant_permission">Consenti l\'accesso</string>
     <string name="action_rescan">Aggiorna</string>
 
-    <string name="empty_title">Nessuno sticker ancora</string>
-    <string name="empty_body">Gli sticker che crei o salvi su TikTok mentre scorri i video restano chiusi dentro TikTok: Whatik li tira fuori da una registrazione dello schermo o da un link, li converte nel formato di WhatsApp e li aggiunge come pack, uno alla volta o in massa.</string>
+    <string name="empty_title">Ancora nessuno sticker</string>
+    <string name="empty_body">Cattura gli sticker da TikTok con la bolla, oppure importali da una registrazione, dalla galleria o da un link. Poi selezionali e crea un pack per WhatsApp.</string>
     <string name="empty_step1">Il modo più comodo: "Cattura automatica da TikTok". Whatik mostra una bolla sopra TikTok; quando gli sticker sono sullo schermo tocca la bolla e Whatik li trova e li aggiunge da solo.</string>
     <string name="empty_step2">In alternativa registra lo schermo con il registratore del telefono e condividi il video con Whatik: gli sticker che si muovono vengono trovati da soli, premi "Crea tutti".</string>
     <string name="empty_step3">Hai il link diretto a uno sticker (file .awebp/.webp/.gif) o a una pagina che lo contiene? Usa "Da link". Le immagini già in galleria si trovano con la ricerca automatica.</string>
     <string name="empty_step4">Tocca gli sticker per selezionarli (o "Seleziona tutto") e premi "Copia su WhatsApp": i pack vengono creati e aperti in WhatsApp (da 3 a 30 sticker per pack).</string>
-    <string name="badge_animated">GIF</string>
+    <string name="badge_animated">Animato</string>
 
     <plurals name="delete_confirm_title">
         <item quantity="one">Eliminare %d sticker?</item>
         <item quantity="other">Eliminare %d sticker?</item>
     </plurals>
-    <string name="delete_confirm_body">Verranno rimossi solo dalla libreria di Whatik, non dai pack già creati.</string>
+    <string name="delete_confirm_body">Spariscono dalla libreria di Whatik. I pack già creati non cambiano.</string>
 
-    <string name="export_title">Copia su WhatsApp</string>
+    <string name="export_title">Crea pack</string>
     <string name="export_name">Nome del pack</string>
     <string name="export_publisher">Autore</string>
-    <string name="export_mix_title">Sticker fermi e animati</string>
-    <string name="export_mix_all_animated">Un solo pack animato: gli sticker fermi diventano animazioni di due fotogrammi uguali (come Sticker Maker)</string>
-    <string name="export_mix_separate">Pack separati: uno per gli sticker fermi, uno per gli animati</string>
-    <string name="export_mix_all_static">Tutto statico: degli animati resta il primo fotogramma</string>
+    <string name="export_mix_title">Sticker fermi e animati insieme</string>
+    <string name="export_mix_all_animated">Un solo pack animato (consigliato)</string>
+    <string name="export_mix_separate">Pack separati</string>
+    <string name="export_mix_all_static">Tutto fermo</string>
     <string name="export_group_static">%d sticker statici</string>
     <string name="export_group_animated">%d sticker animati</string>
     <string name="export_target_new">Nuovo pack</string>
@@ -71,28 +71,28 @@
         <item quantity="one">%d pack esistente verrà aggiornato.</item>
         <item quantity="other">%d pack esistenti verranno aggiornati.</item>
     </plurals>
-    <string name="export_warning_small">WhatsApp accetta solo pack con almeno 3 sticker: %s. Potrai completarli più tardi aggiungendo altri sticker.</string>
+    <string name="export_warning_small">WhatsApp accetta pack da almeno 3 sticker: %s non si potrà ancora aggiungere. Potrai completarlo più tardi.</string>
     <string name="export_no_whatsapp">WhatsApp non è installato: i pack verranno creati ma non potranno essere aggiunti.</string>
 
-    <string name="progress_title">Conversione in corso</string>
+    <string name="progress_title">Creo il pack…</string>
     <string name="progress_body">%1$d di %2$d · %3$s</string>
     <string name="result_title">Conversione completata</string>
     <string name="result_failures">Non convertiti:</string>
     <string name="result_pack_too_small">Servono almeno 3 sticker</string>
 
-    <string name="scan_permission_body">Per trovare gli sticker salvati da TikTok, Whatik ha bisogno di accedere alle immagini del telefono.</string>
+    <string name="scan_permission_body">Whatik cerca sul telefono le immagini salvate da TikTok.</string>
     <string name="scan_filter_tiktok">Cartelle TikTok (%d)</string>
     <string name="scan_filter_all">Tutte le immagini (%d)</string>
-    <string name="scan_empty">Nessuna immagine trovata.</string>
-    <string name="scan_hint">Le immagini nelle cartelle di TikTok sono già selezionate. Tocca per aggiungere o togliere.</string>
+    <string name="scan_empty">Nessuna immagine trovata sul telefono.</string>
+    <string name="scan_hint">Le immagini delle cartelle di TikTok sono già selezionate.</string>
 
-    <string name="packs_empty">Nessun pack ancora. Seleziona degli sticker nella libreria e tocca "Copia su WhatsApp".</string>
+    <string name="packs_empty">Seleziona gli sticker nella libreria e tocca «Crea pack».</string>
     <string name="pack_count_static">%d sticker statici</string>
     <string name="pack_count_animated">%d sticker animati</string>
-    <string name="pack_status_added">Aggiunto a WhatsApp</string>
+    <string name="pack_status_added">Su WhatsApp</string>
     <string name="pack_status_not_added">Non ancora su WhatsApp</string>
     <string name="pack_status_too_small">Servono almeno %2$d sticker (%1$d/%2$d)</string>
-    <string name="pack_delete_confirm">Eliminare il pack "%s"? Non sarà più disponibile neanche per WhatsApp.</string>
+    <string name="pack_delete_confirm">«%s» non sarà più disponibile in WhatsApp. Gli sticker restano nella libreria.</string>
     <string name="pack_action_manage">Gestisci</string>
     <string name="pack_action_add">Aggiungi sticker</string>
     <string name="pack_action_merge">Unisci con altri pack…</string>
@@ -100,25 +100,25 @@
     <string name="pack_action_rename">Rinomina</string>
     <string name="pack_action_remove">Rimuovi dal pack</string>
     <string name="pack_free_slots">%1$d/%2$d</string>
-    <string name="pack_detail_hint">Tocca gli sticker per selezionarli e rimuoverli dal pack. Le modifiche arrivano a WhatsApp alla prossima apertura del pack (o con "Riapri su WhatsApp").</string>
+    <string name="pack_detail_hint">Tocca gli sticker per selezionarli. WhatsApp vede le modifiche quando riapri il pack.</string>
     <string name="pack_empty">Pack vuoto: aggiungi sticker dalla libreria.</string>
     <plurals name="pack_remove_confirm">
         <item quantity="one">Rimuovere %d sticker dal pack?</item>
         <item quantity="other">Rimuovere %d sticker dal pack?</item>
     </plurals>
-    <string name="pack_remove_body">Gli sticker restano nella libreria, se ci sono ancora.</string>
+    <string name="pack_remove_body">Restano nella libreria, se non li hai eliminati.</string>
     <string name="pack_add_title">Aggiungi a "%s"</string>
     <string name="pack_add_fab">Aggiungi (%1$d/%2$d)</string>
-    <string name="pack_add_hint">Posti liberi: %1$d. Il pack è %2$s: gli sticker scelti vengono convertiti a quel tipo. Chi è già nel pack non viene mostrato.</string>
+    <string name="pack_add_hint">Posti liberi: %1$d · verranno convertiti in sticker %2$s</string>
     <string name="pack_add_empty">Nessuno sticker da aggiungere: importane altri nella libreria.</string>
     <string name="pack_progress">Conversione %1$d/%2$d</string>
     <string name="merge_title">Unisci pack</string>
     <string name="merge_hint">Scegli i pack da unire dentro "%s". Oltre i 30 sticker vengono creati pack nuovi numerati.</string>
     <string name="merge_none">Non ci sono altri pack da unire.</string>
-    <string name="merge_result_type">Tipi diversi: risultato</string>
-    <string name="merge_result_animated">Pack animato: gli sticker fermi diventano animazioni di due fotogrammi</string>
-    <string name="merge_result_static">Tutto statico: degli animati resta il primo fotogramma</string>
-    <string name="merge_delete_sources">Elimina i pack uniti dopo l\'unione</string>
+    <string name="merge_result_type">Il pack unito sarà</string>
+    <string name="merge_result_animated">Animato: gli sticker fermi diventano animazioni di 2 fotogrammi</string>
+    <string name="merge_result_static">Fermo: degli animati resta il primo fotogramma</string>
+    <string name="merge_delete_sources">Elimina i pack di origine dopo l\'unione</string>
     <string name="merge_summary">%1$d sticker in totale: %2$d in questo pack, %3$d in %4$d pack nuovi.</string>
     <string name="merge_confirm">Unisci</string>
     <string name="rename_title">Rinomina pack</string>
@@ -146,16 +146,16 @@
     <string name="msg_whatsapp_cancelled">Aggiunta a WhatsApp annullata</string>
     <string name="msg_whatsapp_error">WhatsApp ha rifiutato il pack: %s</string>
     <string name="msg_whatsapp_missing">WhatsApp non è installato</string>
-    <string name="share_nothing">Nessuna immagine da importare</string>
+    <string name="share_nothing">Niente da importare</string>
 
-    <string name="title_editor">Ritaglia lo sticker</string>
-    <string name="editor_hint_video">Se il rilevamento automatico non basta: trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo; due dita ingrandiscono la vista. Poi scegli l\'intervallo da animare (massimo 10 secondi).</string>
-    <string name="editor_hint_image">Trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo. Due dita ingrandiscono la vista.</string>
-    <string name="editor_hint_animated">Trascina i bordi o gli angoli del riquadro per ridimensionarlo, l\'interno per spostarlo; due dita ingrandiscono la vista. Con i cursori del tempo puoi accorciare l\'animazione (il ritaglio vale per tutti i fotogrammi).</string>
+    <string name="title_editor">Ritaglia</string>
+    <string name="editor_hint_video">Se il riquadro non è giusto, trascina bordi e angoli; due dita per ingrandire. Poi scegli la parte da animare (massimo 10 secondi).</string>
+    <string name="editor_hint_image">Trascina bordi e angoli per ridimensionare, l\'interno per spostare. Due dita per ingrandire.</string>
+    <string name="editor_hint_animated">Trascina bordi e angoli per ridimensionare, l\'interno per spostare. Con il cursore scegli quale parte dell\'animazione tenere.</string>
     <string name="editor_full_image">Tutta l\'immagine</string>
-    <string name="editor_make_square">Rendi quadrato</string>
-    <string name="editor_keep_original">Conserva anche l\'originale in libreria (utile se contiene altri sticker)</string>
-    <string name="editor_range">Intervallo da animare</string>
+    <string name="editor_make_square">Quadrato</string>
+    <string name="editor_keep_original">Conserva anche l\'originale</string>
+    <string name="editor_range">Parte da animare</string>
     <string name="editor_duration">%1$.1f s · %2$d fotogrammi</string>
     <string name="editor_name">Nome dello sticker</string>
     <string name="editor_create">Crea sticker</string>
@@ -172,34 +172,34 @@
         <item quantity="one">%d sticker trovato automaticamente</item>
         <item quantity="other">%d sticker trovati automaticamente</item>
     </plurals>
-    <string name="editor_no_proposals">Nessuno sticker animato trovato automaticamente (funziona quando lo sfondo è fermo e lo sticker si muove). Inquadra lo sticker a mano qui sotto.</string>
+    <string name="editor_no_proposals">Nessuno sticker animato trovato da solo: funziona quando lo sfondo è fermo e lo sticker si muove. Inquadralo a mano qui sotto.</string>
     <string name="editor_detect_again">Riprova il rilevamento</string>
     <string name="editor_create_all">Crea tutti (%d)</string>
     <string name="editor_bulk_progress">Sticker %1$d di %2$d</string>
     <string name="editor_manual_title">Oppure regola a mano</string>
     <string name="msg_sticker_failed">Sticker non creato: %s</string>
-    <string name="msg_video_unreadable">Video non leggibile %s</string>
+    <string name="msg_video_unreadable">Video non leggibile: %s</string>
 
     <string name="link_title">Importa da link</string>
-    <string name="link_hint">Incolla il link di uno sticker (file .awebp, .webp o .gif) oppure di una pagina che lo contiene: Whatik scarica l\'immagine o elenca quelle trovate nella pagina.</string>
+    <string name="link_hint">Incolla l\'indirizzo di uno sticker (.webp, .awebp, .gif) o di una pagina: Whatik scarica l\'immagine o ti mostra quelle trovate.</string>
     <string name="link_field">Link</string>
-    <string name="link_search">Cerca</string>
+    <string name="link_search">Continua</string>
     <string name="link_none_found">Nessuna immagine trovata nella pagina</string>
     <string name="link_error">Link non importato: %s</string>
     <string name="title_link_results">Immagini trovate</string>
     <string name="link_filter_stickers">Probabili sticker (%d)</string>
     <string name="link_filter_all">Tutte (%d)</string>
 
-    <string name="title_capture">Cattura automatica</string>
+    <string name="title_capture">Cattura</string>
     <string name="capture_intro">Whatik mostra una bolla sopra TikTok. Vai dove gli sticker sono visibili (un video, il pannello degli sticker, una chat) e tocca la bolla: si apre un menu circolare. "Punta" ti fa toccare lo sticker da catturare: Whatik inquadra la zona, blocca lo schermo per 8 secondi (così non si scorre per sbaglio), registra a 20 fotogrammi al secondo, misura la durata del loop e capisce da solo se lo sticker è animato o fermo. "Tutti" cattura in un colpo tutti gli sticker animati sullo schermo. "Termina" o la pressione lunga sulla bolla chiudono la sessione.</string>
-    <string name="capture_step_overlay">Permesso di mostrare la bolla sopra le altre app</string>
-    <string name="capture_step_notifications">Notifiche, per vedere lo stato della sessione</string>
+    <string name="capture_step_overlay">Bolla sopra le altre app</string>
+    <string name="capture_step_notifications">Notifiche</string>
     <string name="capture_granted">Concesso</string>
     <string name="capture_grant">Concedi</string>
-    <string name="capture_start">Avvia la sessione e apri TikTok</string>
-    <string name="capture_stop">Termina la sessione</string>
+    <string name="capture_start">Avvia e apri TikTok</string>
+    <string name="capture_stop">Termina sessione</string>
     <string name="capture_open_tiktok">Apri TikTok</string>
-    <string name="capture_running">Sessione attiva: in TikTok tocca la bolla per catturare.</string>
+    <string name="capture_running">In TikTok tocca la bolla per catturare.</string>
     <string name="capture_cancelled">Cattura dello schermo non autorizzata</string>
     <string name="capture_tiktok_missing">TikTok non trovato: aprilo tu, la bolla resta visibile</string>
     <string name="capture_channel_name">Cattura automatica</string>
@@ -213,22 +213,22 @@
         <item quantity="one">%d sticker aggiunto alla libreria</item>
         <item quantity="other">%d sticker aggiunti alla libreria</item>
     </plurals>
-    <string name="capture_status_none">Nessuno sticker animato trovato in questa cattura: tieni fermo lo schermo con lo sticker in vista</string>
+    <string name="capture_status_none">Nessuno sticker trovato: tieni lo sticker ben visibile e riprova</string>
     <string name="capture_status_stopped">Sessione terminata</string>
     <string name="aim_hint">Tocca lo sticker da catturare</string>
     <string name="aim_cancel">Annulla</string>
     <string name="radial_point">Punta</string>
     <string name="radial_all">Tutti</string>
     <string name="radial_end">Termina</string>
-    <string name="lock_label">Whatik sta registrando: schermo bloccato</string>
-    <string name="lock_processing">Sticker %1$d di %2$d</string>
+    <string name="lock_label">Registrazione in corso</string>
+    <string name="lock_processing">Elaboro lo sticker %1$d di %2$d</string>
     <string name="capture_status_grid_search">Cerco le tessere del pannello…</string>
     <string name="capture_status_point_search">Cerco lo sticker toccato…</string>
     <plurals name="capture_status_grid_found">
         <item quantity="one">%d sticker nel pannello: registro</item>
         <item quantity="other">%d sticker nel pannello: registro</item>
     </plurals>
-    <string name="capture_no_grid">Nessuna griglia di sticker: catturo ciò che si muove</string>
+    <string name="capture_no_grid">Pannello sticker non trovato: catturo ciò che si muove</string>
     <plurals name="capture_cut_tiles">
         <item quantity="one">%d sticker tagliato dal bordo, saltato: scorri il pannello e ripeti</item>
         <item quantity="other">%d sticker tagliati dal bordo, saltati: scorri il pannello e ripeti</item>
@@ -245,16 +245,177 @@
         <item quantity="one">%d sticker catturato in questa sessione</item>
         <item quantity="other">%d sticker catturati in questa sessione</item>
     </plurals>
-    <string name="capture_review">Vedi e seleziona nella libreria</string>
-    <string name="capture_hint_crop">Sticker venuto male? Nella libreria tieni premuto lo sticker per ritagliarlo o accorciare l\'animazione.</string>
+    <string name="capture_review">Vedi nella libreria</string>
+    <string name="capture_hint_crop">Uno sticker è venuto male? Nella libreria tienilo premuto per ritagliarlo.</string>
     <plurals name="msg_captured_selected">
-        <item quantity="one">%d sticker catturato selezionato: tienilo premuto per ritagliarlo</item>
-        <item quantity="other">%d sticker catturati selezionati: tieni premuto uno sticker per ritagliarlo</item>
+        <item quantity="one">%d sticker catturato selezionato</item>
+        <item quantity="other">%d sticker catturati selezionati</item>
     </plurals>
-    <string name="capture_too_few_frames">troppi pochi fotogrammi: lo schermo non cambiava</string>
+    <string name="capture_too_few_frames">troppo pochi fotogrammi: lo schermo non cambiava</string>
     <string name="capture_failed">Cattura non riuscita: %s</string>
-    <string name="capture_tips">Suggerimenti: durante la cattura lo schermo è bloccato da Whatik e mostra la zona inquadrata con il conto alla rovescia. Se lo sticker è sopra un video in riproduzione, mettilo in pausa. Gli sticker fermi si prendono con "Punta"; "Tutti" trova solo quelli animati.</string>
+    <string name="capture_tips">• Se lo sticker è sopra un video in riproduzione, mettilo in pausa.\n• Durante la registrazione lo schermo resta bloccato per 8 secondi.\n• Con «Tutti» gli sticker tagliati dal bordo vengono saltati: scorri il pannello e ripeti, i doppioni non si ripetono.</string>
 
     <string name="default_pack_name">Sticker TikTok</string>
     <string name="default_publisher">Whatik</string>
+
+    <!-- ===== Redesign (audit UX 3.5): stringhe nuove; le chiavi obsolete si tolgono in P10 ===== -->
+
+    <!-- Navigazione e comuni -->
+    <string name="nav_capture">Cattura</string>
+    <string name="nav_library">Libreria</string>
+    <string name="nav_packs">Pack</string>
+    <string name="nav_capture_active">Sessione attiva</string>
+    <plurals name="title_selected_count">
+        <item quantity="one">%d selezionato</item>
+        <item quantity="other">%d selezionati</item>
+    </plurals>
+    <string name="action_more">Altre azioni</string>
+    <string name="action_done">Fatto</string>
+    <string name="action_open_settings">Apri impostazioni</string>
+    <string name="action_select">Seleziona</string>
+    <string name="action_deselect">Deseleziona</string>
+    <string name="action_deselect_all">Deseleziona tutto</string>
+    <string name="state_selected">Selezionato</string>
+    <string name="state_not_selected">Non selezionato</string>
+
+    <!-- Libreria -->
+    <string name="library_hint">Tocca per selezionare · tieni premuto per ritagliare</string>
+    <string name="library_busy">Importazione in corso…</string>
+    <string name="empty_action_capture">Inizia a catturare</string>
+    <plurals name="msg_deleted_count">
+        <item quantity="one">%d sticker eliminato</item>
+        <item quantity="other">%d sticker eliminati</item>
+    </plurals>
+    <plurals name="msg_duplicates_count">
+        <item quantity="one">%d già presente</item>
+        <item quantity="other">%d già presenti</item>
+    </plurals>
+    <plurals name="msg_failed_count">
+        <item quantity="one">%1$d non importato (%2$s)</item>
+        <item quantity="other">%1$d non importati (%2$s)</item>
+    </plurals>
+
+    <!-- Cattura -->
+    <string name="capture_live_title">Dal vivo su TikTok</string>
+    <string name="capture_live_body">Una bolla resta sopra TikTok: toccala quando vedi gli sticker che vuoi.</string>
+    <string name="capture_mode_point_body">Tocchi uno sticker: Whatik lo registra per 8 secondi e capisce se è animato o fermo.</string>
+    <string name="capture_mode_all_body">Prende tutte le tessere visibili del pannello sticker, ferme e animate. Senza pannello prende ciò che si muove.</string>
+    <string name="capture_mode_end_body">Chiude la sessione. Puoi anche tenere premuta la bolla.</string>
+    <string name="capture_permissions_title">Prima di iniziare</string>
+    <string name="capture_required">Obbligatorio</string>
+    <string name="capture_recommended">Consigliato</string>
+    <string name="capture_step_overlay_help">Si aprono le impostazioni: trova Whatik nell\'elenco, attiva l\'interruttore e torna qui.</string>
+    <string name="capture_step_notifications_help">Ti avvisano quando gli sticker sono pronti.</string>
+    <string name="capture_notifications_blocked">Le notifiche di Whatik sono disattivate. Puoi attivarle nelle impostazioni.</string>
+    <string name="capture_start_disabled_hint">Per avviare serve il permesso della bolla.</string>
+    <string name="capture_consent_hint">Android ti chiederà il permesso di registrare lo schermo: confermalo. Whatik salva le immagini solo mentre catturi.</string>
+    <string name="capture_running_title">Sessione attiva</string>
+    <string name="capture_create_pack">Crea pack con questi (%d)</string>
+    <string name="capture_sources_title">Da altre fonti</string>
+    <string name="source_video_title">Registrazione dello schermo</string>
+    <string name="source_video_body">Trova da sola gli sticker animati in un video</string>
+    <string name="source_gallery_title">Galleria</string>
+    <string name="source_gallery_body">Immagini e GIF già salvate</string>
+    <string name="source_scan_title">Cerca sul telefono</string>
+    <string name="source_scan_body">Trova le immagini nelle cartelle di TikTok</string>
+    <string name="source_link_title">Link</string>
+    <string name="source_link_body">Indirizzo di uno sticker o di una pagina</string>
+    <string name="source_files_title">File</string>
+    <string name="source_files_body">Da Download, Drive e altre app</string>
+    <string name="source_folder_title">Cartella</string>
+    <string name="source_folder_body">Tutte le immagini di una cartella</string>
+    <string name="capture_tips_title">Suggerimenti</string>
+
+    <!-- Overlay e notifiche -->
+    <string name="bubble_a11y">Bolla di Whatik. Tocca per catturare, tieni premuto per terminare la sessione.</string>
+    <string name="bubble_end_confirm">Terminare la sessione?</string>
+    <string name="aim_hint_secondary">Per scorrere il pannello, annulla e riapri dalla bolla.</string>
+    <string name="lock_sublabel">Non toccare lo schermo</string>
+    <string name="lock_seconds">%d s</string>
+    <plurals name="capture_status_duplicates">
+        <item quantity="one">%d già in libreria</item>
+        <item quantity="other">%d già in libreria</item>
+    </plurals>
+    <plurals name="capture_result_text">
+        <item quantity="one">Tocca per selezionarlo nella libreria</item>
+        <item quantity="other">Tocca per selezionare i %d sticker della sessione</item>
+    </plurals>
+
+    <!-- Cerca sul telefono, link, condivisione -->
+    <string name="scan_loading">Cerco le immagini…</string>
+    <string name="scan_permission_title">Serve l\'accesso alle foto</string>
+    <string name="scan_permission_blocked">L\'accesso alle foto è stato negato. Puoi attivarlo nelle impostazioni di Whatik.</string>
+    <string name="link_loading">Apro il link…</string>
+    <string name="link_source">Da %s</string>
+
+    <!-- Pack -->
+    <string name="packs_empty_title">Ancora nessun pack</string>
+    <string name="packs_empty_action">Vai alla libreria</string>
+    <plurals name="pack_count_still_n">
+        <item quantity="one">%d sticker fermo</item>
+        <item quantity="other">%d sticker fermi</item>
+    </plurals>
+    <plurals name="pack_count_animated_n">
+        <item quantity="one">%d sticker animato</item>
+        <item quantity="other">%d sticker animati</item>
+    </plurals>
+    <plurals name="pack_status_missing">
+        <item quantity="one">Manca %d sticker per WhatsApp</item>
+        <item quantity="other">Mancano %d sticker per WhatsApp</item>
+    </plurals>
+    <string name="pack_open_a11y">Apri il pack %s</string>
+    <string name="pack_action_delete">Elimina pack</string>
+    <string name="pack_delete_title">Eliminare il pack?</string>
+    <string name="pack_meta">%1$d/%2$d sticker · %3$s</string>
+    <string name="kind_still_pl">fermi</string>
+    <string name="kind_animated_pl">animati</string>
+    <string name="pack_add_full">Pack pieno: togli uno sticker dalla selezione per sceglierne un altro.</string>
+    <string name="a11y_pack_sticker">Sticker %1$d di %2$d</string>
+    <string name="merge_delete_sources_help">Spariranno anche da WhatsApp.</string>
+    <plurals name="msg_pack_skipped_n">
+        <item quantity="one">%d non aggiunto: pack pieno</item>
+        <item quantity="other">%d non aggiunti: pack pieno</item>
+    </plurals>
+
+    <!-- Crea pack -->
+    <plurals name="export_subtitle">
+        <item quantity="one">%d sticker selezionato</item>
+        <item quantity="other">%d sticker selezionati</item>
+    </plurals>
+    <plurals name="export_group_still_n">
+        <item quantity="one">Dove mettere %d sticker fermo</item>
+        <item quantity="other">Dove mettere %d sticker fermi</item>
+    </plurals>
+    <plurals name="export_group_animated_n">
+        <item quantity="one">Dove mettere %d sticker animato</item>
+        <item quantity="other">Dove mettere %d sticker animati</item>
+    </plurals>
+    <string name="export_kind_title">Tipo di pack</string>
+    <string name="export_mix_all_animated_help">Gli sticker fermi diventano animazioni di 2 fotogrammi uguali.</string>
+    <string name="export_mix_separate_help">Uno per gli sticker fermi e uno per gli animati.</string>
+    <string name="export_mix_all_static_help">Degli sticker animati resta solo il primo fotogramma.</string>
+    <string name="export_kind_animated">Animato (consigliato)</string>
+    <string name="export_kind_animated_help">Gli sticker restano animati.</string>
+    <string name="export_new_pack_section">Pack nuovo</string>
+    <string name="export_confirm_existing">Aggiungi al pack</string>
+    <plurals name="result_title_n">
+        <item quantity="one">Pack pronto</item>
+        <item quantity="other">%d pack pronti</item>
+    </plurals>
+    <string name="action_open_packs">Vai ai pack</string>
+
+    <!-- Editor -->
+    <string name="title_editor_video">Dalla registrazione</string>
+    <string name="editor_range_values">Da %1$.1f s a %2$.1f s</string>
+    <string name="editor_keep_original_help">Utile se l\'immagine contiene altri sticker. Se è spento, l\'originale viene sostituito.</string>
+    <string name="editor_proposal_a11y">Proposta %1$d di %2$d</string>
+
+    <!-- Errori del livello dati -->
+    <string name="err_read_file">Impossibile leggere il file</string>
+    <string name="err_permission">Permesso negato</string>
+    <string name="err_unknown">Errore sconosciuto</string>
+    <string name="err_empty_file">File vuoto</string>
+    <string name="err_too_large">File troppo grande (max 30 MB)</string>
+    <string name="err_unsupported">Non è un\'immagine supportata</string>
+    <string name="err_video_unreadable">Impossibile leggere il video</string>
 </resources>
