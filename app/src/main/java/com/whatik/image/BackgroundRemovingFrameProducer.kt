@@ -8,6 +8,9 @@ import android.graphics.Bitmap
  * soggetto unico, lo sfondo attorno a lui. La decisione si prende sul primo fotogramma e vale
  * per tutti; il riquadro finale è l'unione su tutti i fotogrammi, così lo sticker non "salta".
  * Se non c'è uno sfondo riconoscibile i fotogrammi passano invariati.
+ *
+ * I fotogrammi puliti per calcolare il riquadro restano in memoria (entro [CACHE_BUDGET_BYTES]):
+ * le passate del convertitore li riusano senza decodificarli e pulirli di nuovo.
  */
 class BackgroundRemovingFrameProducer(
     private val inner: FrameProducer,
@@ -19,6 +22,12 @@ class BackgroundRemovingFrameProducer(
     private var background: Int? = null
     private var plan: StickerCleaner.Plan? = null
     private var trim: IntArray? = null
+    /** Fotogrammi già puliti, nell'ordine di [inner]; null = non ci stanno nel budget e si ridecodificano. */
+    private var cache: List<CleanFrame>? = null
+    private var cacheWidth = 0
+    private var cacheHeight = 0
+
+    private class CleanFrame(val index: Int, val pixels: IntArray)
 
     override val info: FrameInfo
         get() {
@@ -35,6 +44,13 @@ class BackgroundRemovingFrameProducer(
         var unionBox: IntArray? = null
         var frameW = 0
         var frameH = 0
+        // si tengono i fotogrammi puliti solo se tutti insieme stanno nel budget, stimato prima di
+        // decodificare; altrimenti ogni passata li ridecodifica come prima
+        val budget = cacheBudget()
+        val expected = inner.info
+        var kept: ArrayList<CleanFrame>? =
+            if (expected.frameCount.toLong() * expected.width * expected.height * 4 <= budget) ArrayList() else null
+        var keptBytes = 0L
         inner.produce { i, frame ->
             val w = frame.width
             val h = frame.height
@@ -49,9 +65,18 @@ class BackgroundRemovingFrameProducer(
             }
             val b = bg ?: return@produce false
             val p = chosen ?: return@produce false
-            if (w != frameW || h != frameH) return@produce false
+            if (w != frameW || h != frameH) {
+                // fotogrammi di misure diverse: niente cache, produce() rifà tutto come prima
+                kept = null
+                return@produce false
+            }
             val box = StickerCleaner.apply(px, w, h, b, p, params)
             unionBox = unionBox?.let { BackgroundRemover.union(it, box) } ?: box
+            kept?.let { list ->
+                // apply() ha già pulito px sul posto: la cache tiene il risultato, non il fotogramma grezzo
+                keptBytes += px.size * 4L
+                if (keptBytes <= budget) list.add(CleanFrame(i, px)) else kept = null
+            }
             true
         }
         val u = unionBox
@@ -59,6 +84,9 @@ class BackgroundRemovingFrameProducer(
         background = bg
         plan = chosen
         trim = u
+        cache = kept
+        cacheWidth = frameW
+        cacheHeight = frameH
     }
 
     override fun produce(consume: (Int, Bitmap) -> Boolean) {
@@ -70,6 +98,14 @@ class BackgroundRemovingFrameProducer(
             inner.produce(consume)
             return
         }
+        val cached = cache
+        if (cached != null) {
+            // stessi pixel di una nuova decodifica + pulizia, senza rifarle
+            for (frame in cached) {
+                if (!consume(frame.index, trimmed(frame.pixels, cacheWidth, cacheHeight, t))) return
+            }
+            return
+        }
         inner.produce { i, frame ->
             val w = frame.width
             val h = frame.height
@@ -77,12 +113,28 @@ class BackgroundRemovingFrameProducer(
             frame.getPixels(px, 0, w, 0, 0, w, h)
             frame.recycle()
             StickerCleaner.apply(px, w, h, bg, p, params)
-            val tl = t[0].coerceIn(0, w - 1)
-            val tt = t[1].coerceIn(0, h - 1)
-            val tw = t[2].coerceIn(1, w - tl)
-            val th = t[3].coerceIn(1, h - tt)
-            val out = Bitmap.createBitmap(px, tt * w + tl, w, tw, th, Bitmap.Config.ARGB_8888)
-            consume(i, out)
+            consume(i, trimmed(px, w, h, t))
+        }
+    }
+
+    /** Copia del riquadro finale [t] da un fotogramma pulito; [px] non viene modificato. */
+    private fun trimmed(px: IntArray, w: Int, h: Int, t: IntArray): Bitmap {
+        val tl = t[0].coerceIn(0, w - 1)
+        val tt = t[1].coerceIn(0, h - 1)
+        val tw = t[2].coerceIn(1, w - tl)
+        val th = t[3].coerceIn(1, h - tt)
+        return Bitmap.createBitmap(px, tt * w + tl, w, tw, th, Bitmap.Config.ARGB_8888)
+    }
+
+    companion object {
+        /** Tetto della cache: 8 s a 20 fps di una tessera da ~290 px (160 × 290² × 4 B ≈ 54 MB) ci stanno. */
+        const val CACHE_BUDGET_BYTES = 64L * 1024 * 1024
+
+        /** Mai oltre metà dell'heap ancora libero: la cache non deve portare a un OutOfMemoryError. */
+        private fun cacheBudget(): Long {
+            val runtime = Runtime.getRuntime()
+            val free = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
+            return minOf(CACHE_BUDGET_BYTES, free / 2)
         }
     }
 }
