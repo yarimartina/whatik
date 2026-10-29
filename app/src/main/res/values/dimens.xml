@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overlay sopra TikTok (audit UX 3.4): misure in dp, testi in sp (seguono la scala del carattere) -->
+    <dimen name="overlay_bubble_size">56dp</dimen>
+    <dimen name="overlay_badge_min">20dp</dimen>
+    <dimen name="overlay_radial_radius">96dp</dimen>
+    <dimen name="overlay_radial_button">56dp</dimen>
+    <dimen name="overlay_touch_min">48dp</dimen>
+    <dimen name="overlay_pill_radius">24dp</dimen>
+    <dimen name="overlay_pill_padding_h">16dp</dimen>
+    <dimen name="overlay_pill_padding_v">12dp</dimen>
+    <dimen name="overlay_text_title">16sp</dimen>
+    <dimen name="overlay_text_body">14sp</dimen>
+    <dimen name="overlay_text_badge">12sp</dimen>
+    <dimen name="overlay_progress_height">4dp</dimen>
+    <dimen name="overlay_frame_stroke">3dp</dimen>
+</resources>
