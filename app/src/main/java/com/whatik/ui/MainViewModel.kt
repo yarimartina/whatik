@@ -5,6 +5,8 @@ import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -26,11 +28,17 @@ import com.whatik.data.UrlImporter
 import com.whatik.image.CropSpec
 import com.whatik.image.CroppedFrameProducer
 import com.whatik.image.FrameProducer
+import com.whatik.image.GifDecoder
+import com.whatik.image.GifFrameProducer
+import com.whatik.image.ImageFormat
+import com.whatik.image.ImageKind
 import com.whatik.image.StickerConverter
 import com.whatik.image.StickerProposal
 import com.whatik.image.TrimmedFrameProducer
 import com.whatik.image.VideoAnalyzer
 import com.whatik.image.VideoFrameProducer
+import com.whatik.image.WebPContainer
+import com.whatik.image.WebPFrameProducer
 import com.whatik.whatsapp.WhatsAppBridge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +53,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.UUID
+import kotlin.math.roundToInt
 
 enum class Screen { LIBRARY, SCAN, PACKS, PACK_DETAIL, PACK_ADD, EDITOR, LINK_RESULTS, CAPTURE }
 
@@ -459,19 +469,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val item = library.find(itemId) ?: return
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) {
-                runCatching {
-                    val bytes = library.file(item).readBytes()
-                    val producer = FrameProducer.open(bytes)
-                    val durations = if (producer.info.frameCount > 1) producer.info.durationsMs else emptyList()
-                    val first = FrameProducer.firstFrame(bytes)
-                    Triple(bytes, first, durations)
-                }
+                runCatching { loadEditorImage(library.file(item).readBytes(), item.id) }
             }
             loaded.onFailure { _messages.emit(app.getString(R.string.msg_failed, 1, it.message ?: "")) }
-                .onSuccess { (bytes, first, durations) ->
-                    val total = durations.sumOf { it.toLong() }
+                .onSuccess { (source, first) ->
+                    val total = source.durationsMs.sumOf { it.toLong() }
                     _editorState.value = EditorState(
-                        source = EditorSource.Image(bytes, first.width, first.height, durations.size > 1, replaceItemId = item.id, durationsMs = durations),
+                        source = source,
                         name = item.displayName,
                         crop = CropSpec.FULL,
                         startMs = 0,
@@ -485,6 +489,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _screen.value = Screen.EDITOR
                 }
         }
+    }
+
+    /**
+     * Sorgente e anteprima dell'editor con una sola decodifica. Gli animati prendono il primo
+     * fotogramma dal produttore già aperto; le immagini statiche (uno screenshot 1440x3120 sono
+     * 18 MB) si decodificano già ridotte a [EDITOR_PREVIEW_MAX_SIDE], ma con le dimensioni piene
+     * nella sorgente: il ritaglio è normalizzato e lo sticker si genera dai byte originali,
+     * quindi il risultato non cambia.
+     */
+    private fun loadEditorImage(bytes: ByteArray, replaceItemId: String): Pair<EditorSource.Image, Bitmap> {
+        val animated = openAnimated(bytes)
+        if (animated != null) {
+            var first: Bitmap? = null
+            animated.produce { _, frame -> first = frame; false }
+            val frame = first ?: throw IllegalStateException("Nessun fotogramma decodificato")
+            val durations = animated.info.durationsMs
+            return EditorSource.Image(bytes, frame.width, frame.height, true, replaceItemId = replaceItemId, durationsMs = durations) to frame
+        }
+        var fullW = 0
+        var fullH = 0
+        val preview = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // stesso decoder di FrameProducer.decodeStatic (orientamento EXIF compreso), con il lato lungo limitato
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
+                fullW = info.size.width
+                fullH = info.size.height
+                val scale = EDITOR_PREVIEW_MAX_SIDE.toFloat() / maxOf(fullW, fullH)
+                if (scale < 1f) {
+                    decoder.setTargetSize((fullW * scale).roundToInt().coerceAtLeast(1), (fullH * scale).roundToInt().coerceAtLeast(1))
+                }
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                decoder.isMutableRequired = false
+            }
+        } else {
+            // prima solo l'intestazione, poi la decodifica con inSampleSize (potenza di 2, lato lungo >= limite)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            fullW = bounds.outWidth
+            fullH = bounds.outHeight
+            var sample = 1
+            while (maxOf(fullW, fullH) / (sample * 2) >= EDITOR_PREVIEW_MAX_SIDE) sample *= 2
+            val options = BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inSampleSize = sample
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        } ?: throw IllegalStateException("Immagine non decodificabile")
+        return EditorSource.Image(bytes, fullW, fullH, false, replaceItemId = replaceItemId, durationsMs = emptyList()) to preview
+    }
+
+    /** Come [FrameProducer.open] per GIF e WebP animati; null per le immagini statiche, che così non vengono decodificate. */
+    private fun openAnimated(bytes: ByteArray): FrameProducer? = when (ImageFormat.sniff(bytes)) {
+        ImageKind.GIF -> GifDecoder.readInfo(bytes).takeIf { it.frameCount > 1 }?.let { GifFrameProducer(bytes, it) }
+        ImageKind.WEBP -> WebPContainer.parse(bytes).takeIf { it.animated && it.frames.size > 1 }?.let { WebPFrameProducer(it) }
+        else -> null
     }
 
     fun updateCrop(crop: CropSpec) {
@@ -940,7 +998,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshWhatsAppStatus() {
         viewModelScope.launch {
             val status = withContext(Dispatchers.IO) {
-                packs.value.associate { it.identifier to WhatsAppBridge.isPackAdded(app, it.identifier) }
+                val current = packs.value
+                // installazione di WhatsApp letta una volta per aggiornamento, non una volta per pack
+                val installed = if (current.isEmpty()) emptyList() else WhatsAppBridge.installedPackages(app)
+                current.associate { it.identifier to WhatsAppBridge.isPackAdded(app, it.identifier, installed) }
             }
             _addedToWhatsApp.value = status
         }
@@ -957,6 +1018,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val EXTRA_SELECT_IDS = MainActivity.EXTRA_SELECT_IDS
         const val DEFAULT_CLIP_MS = 3000L
         const val MIN_CLIP_MS = 200L
+
+        /** Lato lungo massimo dell'anteprima di un'immagine statica nell'editor (circa l'area a zoom 1 su uno schermo da 1440 px). */
+        const val EDITOR_PREVIEW_MAX_SIDE = 1440
 
         /** WhatsApp richiede da 1 a 3 emoji per sticker: li usa per la ricerca. */
         val DEFAULT_EMOJIS = listOf("🎵", "😀")
