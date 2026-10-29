@@ -17,7 +17,8 @@ class StickerProposal(
 
 /**
  * Campiona la registrazione a bassa risoluzione, la passa a [StickerDetector] e prepara
- * un'anteprima ritagliata per ogni sticker trovato.
+ * un'anteprima ritagliata per ogni sticker trovato. I campioni si decodificano in sequenza
+ * ([VideoFrameSequence]); i pochi fotogrammi a colori restano al retriever.
  */
 object VideoAnalyzer {
     private const val ANALYSIS_WIDTH = 160
@@ -45,14 +46,19 @@ object VideoAnalyzer {
             val frames = ArrayList<IntArray>(times.size)
             val keptTimes = ArrayList<Long>(times.size)
             val buffer = IntArray(aw * ah)
-            for ((i, timeMs) in times.withIndex()) {
-                val raw = frameAt(retriever, timeMs, aw * 2, ah * 2) ?: continue
-                val scaled = if (raw.width == aw && raw.height == ah) raw else Bitmap.createScaledBitmap(raw, aw, ah, true)
-                if (scaled !== raw) raw.recycle()
-                frames.add(toGray(scaled, buffer))
-                scaled.recycle()
-                keptTimes.add(timeMs)
-                onProgress?.invoke(i + 1, times.size)
+            // istanti crescenti: decodifica sequenziale del video, con il retriever come ripiego
+            VideoFrameSequence(file, LongArray(times.size) { times[it] * 1000L }, aw * 2, ah * 2) { timeUs ->
+                frameAt(retriever, timeUs / 1000L, aw * 2, ah * 2)
+            }.use { sequence ->
+                for ((i, timeMs) in times.withIndex()) {
+                    val raw = sequence.next() ?: continue
+                    val scaled = if (raw.width == aw && raw.height == ah) raw else Bitmap.createScaledBitmap(raw, aw, ah, true)
+                    if (scaled !== raw) raw.recycle()
+                    frames.add(toGray(scaled, buffer))
+                    scaled.recycle()
+                    keptTimes.add(timeMs)
+                    onProgress?.invoke(i + 1, times.size)
+                }
             }
             val found = StickerDetector.detect(frames, aw, ah, keptTimes)
             if (found.isEmpty()) return emptyList()
