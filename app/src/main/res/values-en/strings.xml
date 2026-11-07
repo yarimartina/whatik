@@ -257,4 +257,12 @@
 
     <string name="default_pack_name">TikTok stickers</string>
     <string name="default_publisher">Whatik</string>
+
+    <!-- Correzioni cattura -->
+    <string name="bubble_end_confirm">End the session?</string>
+    <plurals name="capture_status_duplicates">
+        <item quantity="one">%d already in the library</item>
+        <item quantity="other">%d already in the library</item>
+    </plurals>
+    <string name="capture_status_all_duplicates">Nothing new added</string>
 </resources>

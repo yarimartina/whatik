@@ -8,18 +8,20 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import com.whatik.R
 import kotlin.math.abs
 
 /**
  * Bolla flottante mostrata sopra TikTok durante una sessione di cattura.
- * Tocco = cattura, pressione lunga = fine sessione, trascinamento = sposta.
+ * Tocco = cattura, pressione lunga = richiesta di conferma per terminare, trascinamento = sposta.
  */
 class BubbleOverlay(
     private val context: Context,
@@ -115,6 +117,7 @@ class BubbleOverlay(
         private val longPressRunnable = Runnable {
             if (!moved) {
                 moved = true // evita che il rilascio conti come tocco
+                root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                 onLongPress()
             }
         }
@@ -157,4 +160,89 @@ class BubbleOverlay(
             return false
         }
     }
+}
+
+/**
+ * Piccola conferma accanto alla bolla ("Terminare la sessione?" + "Termina"), in una finestra
+ * a tutto schermo toccabile come il menu circolare: toccare altrove la chiude.
+ */
+class EndConfirmOverlay(
+    private val context: Context,
+    private val anchorX: Int,
+    private val anchorY: Int,
+    private val onConfirm: () -> Unit,
+    private val onDismiss: () -> Unit,
+) {
+    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val root = FrameLayout(context)
+    private var attached = false
+    private val params = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.START }
+
+    init {
+        root.setOnTouchListener { v, event ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) { v.performClick(); onDismiss() }
+            true
+        }
+        val metrics = context.resources.displayMetrics
+        val panel = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(0xEE222222.toInt()) }
+            elevation = dp(8).toFloat()
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            isClickable = true // i tocchi sul pannello non lo chiudono
+        }
+        panel.addView(TextView(context).apply {
+            text = context.getString(R.string.bubble_end_confirm)
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            gravity = Gravity.CENTER
+        })
+        val button = TextView(context).apply {
+            text = context.getString(R.string.radial_end)
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            minimumWidth = dp(112)
+            background = GradientDrawable().apply { cornerRadius = dp(24).toFloat(); setColor(0xFFD50000.toInt()) }
+            setPadding(dp(20), 0, dp(20), 0)
+            isClickable = true
+            setOnClickListener { onConfirm() }
+        }
+        val blp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        blp.topMargin = dp(10)
+        panel.addView(button, blp)
+        // accanto alla bolla, dal lato dove c'e' spazio
+        val panelWidth = dp(190)
+        val toRight = anchorX < metrics.widthPixels / 2
+        val flp = FrameLayout.LayoutParams(panelWidth, FrameLayout.LayoutParams.WRAP_CONTENT)
+        val left = if (toRight) anchorX + dp(40) else anchorX - dp(40) - panelWidth
+        flp.leftMargin = left.coerceIn(0, (metrics.widthPixels - panelWidth).coerceAtLeast(0))
+        flp.topMargin = (anchorY - dp(48)).coerceIn(0, (metrics.heightPixels - dp(150)).coerceAtLeast(0))
+        root.addView(panel, flp)
+    }
+
+    fun show() {
+        if (attached) return
+        windowManager.addView(root, params)
+        attached = true
+    }
+
+    fun hide() {
+        if (!attached) return
+        windowManager.removeView(root)
+        attached = false
+    }
+
+    private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
 }
