@@ -1,8 +1,10 @@
 name: Android
 
-# Albero dei branch in docs/BRANCH.md. Su main e su android/** la CI esegue i test e compila
-# l'APK; solo android/main aggiorna la release "latest" e quindi il link fisso
+# Albero dei branch in docs/BRANCH.md. Su main e su android/** la CI esegue i test, compila i due
+# APK (debug e release) e li prova su un emulatore; solo android/main aggiorna la release "latest"
+# e quindi i link fissi
 # https://github.com/<owner>/<repo>/releases/latest/download/whatik-debug.apk
+# https://github.com/<owner>/<repo>/releases/latest/download/whatik.apk (build release, ottimizzata)
 # Un tag android-v* crea una release con quel numero di versione.
 on:
   push:
@@ -39,17 +41,28 @@ jobs:
       - name: Test unitari
         run: ./gradlew testDebugUnitTest -PbuildNumber=${{ github.run_number }}
 
-      - name: Compila APK
-        run: ./gradlew assembleDebug -PbuildNumber=${{ github.run_number }}
+      # Insieme, così i due APK hanno lo stesso versionCode e si installano uno sopra l'altro.
+      - name: Compila gli APK
+        run: ./gradlew assembleDebug assembleRelease -PbuildNumber=${{ github.run_number }}
 
-      - name: Rinomina l'APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk whatik-debug.apk
+      - name: Rinomina gli APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk whatik-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk whatik.apk
 
       - name: Pubblica l'APK come artefatto della run
         uses: actions/upload-artifact@v4
         with:
           name: whatik-debug-apk
           path: whatik-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Pubblica l'APK release come artefatto della run
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatik-apk
+          path: whatik.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -76,12 +89,73 @@ jobs:
             --title "Ultima build (#${{ github.run_number }})" \
             --notes "Build automatica n. ${{ github.run_number }} dal commit ${{ github.sha }} (branch ${{ github.ref_name }}).
 
-          Link fisso all'APK: https://github.com/${{ github.repository }}/releases/latest/download/whatik-debug.apk"
+          Link fisso all'APK: https://github.com/${{ github.repository }}/releases/latest/download/whatik-debug.apk
+
+          whatik.apk è la stessa app in build release (più piccola, ottimizzata): viene aggiunta qui sotto, insieme a schermate.png, solo dopo aver superato la prova di avvio su emulatore. Si installa sopra l'altra senza perdere i dati."
 
       # Su un tag "android-v*" l'APK finisce in una release con quel numero di versione.
       - name: Allega l'APK alla release del tag
         if: startsWith(github.ref, 'refs/tags/android-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: whatik-debug.apk
+          files: |
+            whatik-debug.apk
+            whatik.apk
           generate_release_notes: true
+
+  # Prova su un telefono simulato: installa la build di debug, importa uno sticker, installa sopra
+  # la build release e controlla che parta, non vada in crash e ritrovi la libreria (ci/smoke.py).
+  avvio:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ci
+
+      - name: Scarica gli APK
+        uses: actions/download-artifact@v4
+        with:
+          pattern: whatik-*apk
+          merge-multiple: true
+
+      - name: Abilita KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa Pillow (foglio delle schermate)
+        run: pip install pillow
+
+      - name: Prova di avvio su emulatore
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: python3 ci/smoke.py whatik.apk whatik-debug.apk schermate
+
+      - name: Pubblica le schermate come artefatto della run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schermate
+          path: schermate
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # Solo dopo una prova superata: un APK release che non parte non arriva nella release.
+      - name: Aggiunge APK release e schermate alla release "latest"
+        if: github.ref == 'refs/heads/android/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload latest whatik.apk schermate/schermate.png schermate/riepilogo.md --clobber --repo "${{ github.repository }}"
