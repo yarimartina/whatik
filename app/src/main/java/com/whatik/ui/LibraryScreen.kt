@@ -1,56 +1,29 @@
 package com.whatik.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEmotions
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.ImageSearch
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,23 +33,31 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.ui.text.font.FontFamily
 import com.whatik.R
 import com.whatik.data.StickerItem
+import com.whatik.ui.components.BarAction
+import com.whatik.ui.components.BusyBanner
+import com.whatik.ui.components.ConfirmDialog
+import com.whatik.ui.components.DialogContainerColor
+import com.whatik.ui.components.EmptyState
+import com.whatik.ui.components.SelectionBottomBar
+import com.whatik.ui.components.StickerGrid
+import com.whatik.ui.components.StickerTile
+import com.whatik.ui.theme.Spacing
 import com.whatik.util.AppInfo
 import java.io.File
 
+/**
+ * Libreria (P1). Senza selezione la barra in basso è lo slot [bottomBar] (la navigazione); in selezione
+ * la sostituisce la [SelectionBottomBar] con Ritaglia ed Elimina. I parametri `onImport*`, [onScan] e
+ * [onOpenPacks] non sono più usati qui (le azioni passano alla Cattura e alla navigazione): restano
+ * nella firma fino a P10.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -100,18 +81,20 @@ fun LibraryScreen(
     onScan: () -> Unit,
     onOpenPacks: () -> Unit,
     onExport: () -> Unit,
+    bottomBar: @Composable () -> Unit = {},
 ) {
-    var importMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var showInfo by remember { mutableStateOf(false) }
     val selectionMode = selected.isNotEmpty()
+    val allSelected = items.isNotEmpty() && selected.size >= items.size
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        if (selectionMode) stringResource(R.string.title_selected, selected.size)
+                        if (selectionMode) pluralStringResource(R.plurals.title_selected_count, selected.size, selected.size)
                         else stringResource(R.string.title_library),
                     )
                 },
@@ -123,72 +106,47 @@ fun LibraryScreen(
                     }
                 },
                 actions = {
-                    if (items.isNotEmpty() && selected.size < items.size) {
-                        IconButton(onClick = onSelectAll) {
-                            Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
-                        }
-                    }
                     if (selectionMode) {
-                        if (selected.size == 1) {
-                            IconButton(onClick = onCropSelected) {
-                                Icon(Icons.Default.Crop, contentDescription = stringResource(R.string.action_crop))
-                            }
-                        }
-                        IconButton(onClick = { confirmDelete = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
+                        TextButton(onClick = if (allSelected) onClearSelection else onSelectAll) {
+                            Text(stringResource(if (allSelected) R.string.action_deselect_all else R.string.action_select_all))
                         }
                     } else {
-                        IconButton(onClick = onOpenPacks) {
-                            Icon(Icons.Default.Collections, contentDescription = stringResource(R.string.action_packs))
-                        }
-                        IconButton(onClick = { showInfo = true }) {
-                            Icon(Icons.Default.Info, contentDescription = stringResource(R.string.action_info))
+                        if (items.isNotEmpty()) {
+                            IconButton(onClick = onSelectAll) {
+                                Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
+                            }
                         }
                         Box {
-                            IconButton(onClick = { importMenu = true }) {
-                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_import))
+                            IconButton(onClick = { moreMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more))
                             }
-                            DropdownMenu(expanded = importMenu, onDismissRequest = { importMenu = false }) {
+                            DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_capture)) },
-                                    leadingIcon = { Icon(Icons.Default.RadioButtonChecked, null) },
-                                    onClick = { importMenu = false; onCapture() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_import_video)) },
-                                    leadingIcon = { Icon(Icons.Default.Videocam, null) },
-                                    onClick = { importMenu = false; onImportVideo() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_import_link)) },
-                                    leadingIcon = { Icon(Icons.Default.Link, null) },
-                                    onClick = { importMenu = false; onImportLink() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_import_gallery)) },
-                                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) },
-                                    onClick = { importMenu = false; onImportGallery() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_import_files)) },
-                                    leadingIcon = { Icon(Icons.Default.InsertDriveFile, null) },
-                                    onClick = { importMenu = false; onImportFiles() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_import_folder)) },
-                                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
-                                    onClick = { importMenu = false; onImportFolder() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_scan)) },
-                                    leadingIcon = { Icon(Icons.Default.ImageSearch, null) },
-                                    onClick = { importMenu = false; onScan() },
+                                    text = { Text(stringResource(R.string.action_info)) },
+                                    onClick = { moreMenu = false; showInfo = true },
                                 )
                             }
                         }
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (selectionMode) {
+                val cropLabel = stringResource(R.string.action_crop)
+                val deleteLabel = stringResource(R.string.action_delete)
+                val single = selected.size == 1
+                SelectionBottomBar(
+                    remember(single, cropLabel, deleteLabel, onCropSelected) {
+                        listOf(
+                            BarAction(Icons.Default.Crop, cropLabel, enabled = single, onClick = onCropSelected),
+                            BarAction(Icons.Default.Delete, deleteLabel, destructive = true, onClick = { confirmDelete = true }),
+                        )
+                    },
+                )
+            } else {
+                bottomBar()
+            }
         },
         floatingActionButton = {
             if (selectionMode) {
@@ -201,14 +159,41 @@ fun LibraryScreen(
         },
         snackbarHost = snackbarHost,
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            if (busy) BusyBanner(stringResource(R.string.library_busy))
             if (items.isEmpty()) {
-                EmptyState(onCapture = onCapture, onImportVideo = onImportVideo, onImportLink = onImportLink, onScan = onScan)
+                EmptyState(
+                    icon = Icons.Default.EmojiEmotions,
+                    title = stringResource(R.string.empty_title),
+                    body = stringResource(R.string.empty_body),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    actionLabel = stringResource(R.string.empty_action_capture),
+                    onAction = onCapture,
+                )
             } else {
-                StickerGrid(items = items, selected = selected, fileOf = fileOf, onToggle = onToggle, onEdit = onEdit)
-            }
-            if (busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+                if (!selectionMode) {
+                    Text(
+                        stringResource(R.string.library_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s),
+                    )
+                }
+                val cropLabel = stringResource(R.string.action_crop)
+                StickerGrid(Modifier.fillMaxWidth().weight(1f)) {
+                    items(items, key = { it.id }) { item ->
+                        val file = remember(item.fileName) { fileOf(item) }
+                        StickerTile(
+                            model = file,
+                            contentDescription = item.displayName,
+                            selected = item.id in selected,
+                            animated = item.animated,
+                            onClick = { onToggle(item.id) },
+                            onLongClick = { onEdit(item.id) },
+                            onLongClickLabel = cropLabel,
+                        )
+                    }
+                }
             }
         }
     }
@@ -218,156 +203,14 @@ fun LibraryScreen(
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(pluralStringResource(R.plurals.delete_confirm_title, selected.size, selected.size)) },
-            text = { Text(stringResource(R.string.delete_confirm_body)) },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDeleteSelected() }) {
-                    Text(stringResource(R.string.action_delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.delete_confirm_title, selected.size, selected.size),
+            body = stringResource(R.string.delete_confirm_body),
+            confirmLabel = stringResource(R.string.action_delete),
+            onConfirm = { confirmDelete = false; onDeleteSelected() },
+            onDismiss = { confirmDelete = false },
+            destructive = true,
         )
-    }
-}
-
-@Composable
-private fun StickerGrid(
-    items: List<StickerItem>,
-    selected: Set<String>,
-    fileOf: (StickerItem) -> File,
-    onToggle: (String) -> Unit,
-    onEdit: (String) -> Unit,
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 104.dp),
-        contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 96.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(items, key = { it.id }) { item ->
-            StickerCell(
-                item = item,
-                file = fileOf(item),
-                selected = item.id in selected,
-                onToggle = { onToggle(item.id) },
-                onEdit = { onEdit(item.id) },
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun StickerCell(item: StickerItem, file: File, selected: Boolean, onToggle: () -> Unit, onEdit: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
-    val borderModifier = if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape) else Modifier
-    Box(
-        Modifier
-            .aspectRatio(1f)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .then(borderModifier)
-            .combinedClickable(onClick = onToggle, onLongClick = onEdit),
-    ) {
-        AsyncImage(
-            model = file,
-            contentDescription = item.displayName,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().padding(6.dp),
-        )
-        if (item.animated) {
-            Text(
-                text = stringResource(R.string.badge_animated),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        if (selected) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .background(MaterialTheme.colorScheme.surface, CircleShape)
-                    .size(24.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(onCapture: () -> Unit, onImportVideo: () -> Unit, onImportLink: () -> Unit, onScan: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(24.dp))
-        Icon(
-            Icons.Default.EmojiEmotions,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(72.dp),
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.empty_title), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.empty_body), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(20.dp))
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Step("1", stringResource(R.string.empty_step1))
-            Step("2", stringResource(R.string.empty_step2))
-            Step("3", stringResource(R.string.empty_step3))
-            Step("4", stringResource(R.string.empty_step4))
-        }
-        Spacer(Modifier.height(24.dp))
-        Button(onClick = onCapture, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.RadioButtonChecked, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_capture))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onImportVideo, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Videocam, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_import_video))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onImportLink, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Link, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_import_link))
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onScan, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.ImageSearch, null)
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.action_scan))
-        }
-    }
-}
-
-@Composable
-private fun Step(number: String, text: String) {
-    androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top) {
-        Text(
-            number,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 12.dp),
-        )
-        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -377,15 +220,19 @@ private fun InfoDialog(onDismiss: () -> Unit) {
     val info = remember { runCatching { AppInfo.read(context) }.getOrNull() }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DialogContainerColor,
         title = { Text(stringResource(R.string.info_title)) },
         text = {
             Column {
-                Text(stringResource(R.string.info_version, info?.versionName ?: "?", info?.versionCode ?: 0L))
-                Text(stringResource(R.string.info_signature, info?.signatureSha256 ?: "?"), style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.info_update_hint), style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.info_longpress_hint), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.info_version, info?.versionName ?: "?", info?.versionCode ?: 0L), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(Spacing.s))
+                Text(
+                    stringResource(R.string.info_signature, info?.signatureSha256 ?: "?"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                )
+                Spacer(Modifier.height(Spacing.m))
+                Text(stringResource(R.string.info_update_hint), style = MaterialTheme.typography.bodyMedium)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) } },

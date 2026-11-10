@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.whatik.R
@@ -37,6 +38,8 @@ import com.whatik.ui.ProgressDialog
 import com.whatik.ui.ResultDialog
 import com.whatik.ui.ScanScreen
 import com.whatik.ui.ScanState
+import com.whatik.ui.components.TopLevelDestination
+import com.whatik.ui.components.WhatikNavigationBar
 import org.junit.Test
 import java.io.File
 
@@ -58,17 +61,19 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
     private fun Library(
         empty: Boolean = false,
         selected: Set<String> = emptySet(),
+        busy: Boolean = false,
         snackbarHost: @Composable () -> Unit = noSnackbar,
     ) {
         LibraryScreen(
             items = if (empty) emptyList() else fake.items,
             selected = selected,
-            busy = false,
+            busy = busy,
             fileOf = fake::file,
             snackbarHost = snackbarHost,
             onToggle = {}, onSelectAll = none, onClearSelection = none, onDeleteSelected = none, onCropSelected = none,
             onEdit = {}, onCapture = none, onImportVideo = none, onImportLink = none, onImportGallery = none,
             onImportFiles = none, onImportFolder = none, onScan = none, onOpenPacks = none, onExport = none,
+            bottomBar = { WhatikNavigationBar(current = TopLevelDestination.LIBRARY, onSelect = {}, captureActive = false) },
         )
     }
 
@@ -101,17 +106,23 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
     }
 
     @Test
-    fun libraryImportMenu() {
+    fun libraryBusy() {
+        show { Library(busy = true) }
+        snap("library-busy")
+    }
+
+    @Test
+    fun libraryMoreMenu() {
         show { Library() }
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_import)).performClick()
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_more)).performClick()
         settle()
-        snapScreen("library-import-menu")
+        snapScreen("library-more-menu")
     }
 
     @Test
     fun libraryDeleteConfirm() {
         show(dimmed = true) { Library(selected = selection) }
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_delete)).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.action_delete)).performClick()
         settle()
         snapScreen("library-delete-confirm")
     }
@@ -119,7 +130,9 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
     @Test
     fun libraryInfo() {
         show(dimmed = true) { Library() }
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_info)).performClick()
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_more)).performClick()
+        settle()
+        compose.onNodeWithText(compose.activity.getString(R.string.action_info)).performClick()
         settle()
         snapScreen("library-info")
     }
