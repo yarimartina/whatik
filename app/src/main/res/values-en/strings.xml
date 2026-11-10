@@ -336,6 +336,8 @@
         <item quantity="one">%d already in the library</item>
         <item quantity="other">%d already in the library</item>
     </plurals>
+    <string name="capture_status_all_duplicates">Nothing new added</string>
+
     <plurals name="capture_result_text">
         <item quantity="one">Tap to select it in the library</item>
         <item quantity="other">Tap to select the %d stickers from this session</item>

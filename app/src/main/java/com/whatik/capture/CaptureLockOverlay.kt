@@ -46,6 +46,14 @@ class CaptureLockOverlay(
         intArrayOf(m.widthPixels, m.heightPixels)
     }
 
+    /** Avviso (es. "nessuna griglia"): sta fuori dalla zona registrata, al posto di un Toast che finirebbe nei fotogrammi. */
+    @Volatile private var notice: String? = null
+
+    fun setNotice(text: String?) {
+        notice = text?.takeIf { it.isNotBlank() }
+        if (attached) view.invalidate()
+    }
+
     /** Fase di elaborazione: indice della tessera corrente e testo; null = registrazione in corso. */
     @Volatile private var currentTile: Int? = null
     @Volatile private var phaseText: String? = null
@@ -170,14 +178,39 @@ class CaptureLockOverlay(
                 canvas.drawText("$label · ${"%.1f".format(remaining)} s", w / 2f, textY, text)
                 val barY = if (above) z.top - dp(20f) else z.bottom + dp(60f)
                 drawBar(canvas, w * 0.15f, barY, w * 0.7f, progress)
+                // avviso oltre l'etichetta, sempre fuori dalla zona
+                notice?.let { n ->
+                    val noticeY = if (above) textY - dp(24f) else barY + dp(32f)
+                    drawNotice(canvas, n, w, noticeY, if (above) -1 else 1)
+                }
             } else {
                 val m = dp(2f)
                 canvas.drawRect(m, m, w - m, h - m, edge)
                 // etichetta nella fascia alta e barra in quella bassa: il rilevatore le ignora
                 canvas.drawText("$label · ${"%.1f".format(remaining)} s", w / 2f, h * 0.045f, text)
+                // avviso sotto l'etichetta, ancora nella fascia alta ignorata dal rilevatore
+                notice?.let { drawNotice(canvas, it, w, h * 0.045f + dp(22f), 1) }
                 drawBar(canvas, w * 0.15f, h - dp(10f), w * 0.7f, progress)
             }
             if (elapsed < durationMs + 1000) postInvalidateOnAnimation()
+        }
+
+        /** Avviso su più righe se serve (stesso stile dell'etichetta); [dir] = verso in cui crescono le righe. */
+        private fun drawNotice(canvas: Canvas, msg: String, w: Float, firstY: Float, dir: Int) {
+            val maxW = w - dp(32f)
+            val lines = ArrayList<String>()
+            var line = ""
+            for (word in msg.split(' ')) {
+                val candidate = if (line.isEmpty()) word else "$line $word"
+                if (line.isNotEmpty() && text.measureText(candidate) > maxW) { lines.add(line); line = word } else line = candidate
+            }
+            if (line.isNotEmpty()) lines.add(line)
+            val step = dp(20f)
+            // verso l'alto l'ultima riga resta la piu' vicina all'etichetta
+            lines.forEachIndexed { i, l ->
+                val k = if (dir < 0) lines.size - 1 - i else i
+                canvas.drawText(l, w / 2f, firstY + dir * k * step, text)
+            }
         }
 
         private fun drawBar(canvas: Canvas, x: Float, y: Float, width: Float, progress: Float) {

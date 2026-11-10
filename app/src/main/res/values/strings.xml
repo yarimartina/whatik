@@ -336,6 +336,8 @@
         <item quantity="one">%d già in libreria</item>
         <item quantity="other">%d già in libreria</item>
     </plurals>
+    <string name="capture_status_all_duplicates">Nessuno sticker nuovo</string>
+
     <plurals name="capture_result_text">
         <item quantity="one">Tocca per selezionarlo nella libreria</item>
         <item quantity="other">Tocca per selezionare i %d sticker della sessione</item>

@@ -79,7 +79,10 @@ class CaptureService : Service() {
     private var bubble: BubbleOverlay? = null
     private var aim: AimOverlay? = null
     private var radial: RadialMenuOverlay? = null
+    private var endConfirm: EndConfirmOverlay? = null
     private var lock: CaptureLockOverlay? = null
+    /** Avviso da mostrare nel blocco schermo (mai come Toast: finirebbe nella registrazione). */
+    private var pendingNotice: String? = null
     private var tornDown = false
     private var screenWidth = 1
     private var screenHeight = 1
@@ -251,10 +254,7 @@ class CaptureService : Service() {
         bubble = BubbleOverlay(
             context = this,
             onTap = { showRadialMenu() },
-            onLongPress = {
-                teardown()
-                stopSelf()
-            },
+            onLongPress = { showEndConfirm() },
         ).also { it.show() }
     }
 
@@ -283,6 +283,29 @@ class CaptureService : Service() {
             ),
             onDismiss = { dismissRadial() },
         ).also { it.show() }
+    }
+
+    /** Pressione lunga sulla bolla: chiede conferma prima di terminare la sessione. */
+    private fun showEndConfirm() {
+        if (capturing || endConfirm != null) return
+        dismissRadial()
+        val center = bubble?.center() ?: return
+        endConfirm = EndConfirmOverlay(
+            context = this,
+            anchorX = center[0],
+            anchorY = center[1],
+            onConfirm = {
+                dismissEndConfirm()
+                teardown()
+                stopSelf()
+            },
+            onDismiss = { dismissEndConfirm() },
+        ).also { it.show() }
+    }
+
+    private fun dismissEndConfirm() {
+        runCatching { endConfirm?.hide() }
+        endConfirm = null
     }
 
     private fun dismissRadial() {
@@ -377,12 +400,12 @@ class CaptureService : Service() {
                     frame.recycle()
                     withContext(Dispatchers.Main) {
                         if (scan == null || scan.tiles.isEmpty()) {
-                            Toast.makeText(this@CaptureService, R.string.capture_no_grid, Toast.LENGTH_SHORT).show()
+                            pendingNotice = getString(R.string.capture_no_grid)
                             beginCapture(null)
                         } else {
                             status.value = resources.getQuantityString(R.plurals.capture_status_grid_found, scan.tiles.size, scan.tiles.size)
                             if (scan.cutTiles > 0) {
-                                Toast.makeText(this@CaptureService, resources.getQuantityString(R.plurals.capture_cut_tiles, scan.cutTiles, scan.cutTiles), Toast.LENGTH_LONG).show()
+                                pendingNotice = resources.getQuantityString(R.plurals.capture_cut_tiles, scan.cutTiles, scan.cutTiles)
                             }
                             gridBackground = scan.background
                             beginCapture(null, scan.tiles)
@@ -395,7 +418,7 @@ class CaptureService : Service() {
                 if (snapshotRequest != null) {
                     snapshotRequest = null
                     mainHandler.post {
-                        Toast.makeText(this@CaptureService, R.string.capture_no_grid, Toast.LENGTH_SHORT).show()
+                        pendingNotice = getString(R.string.capture_no_grid)
                         beginCapture(null)
                     }
                 }
@@ -423,7 +446,10 @@ class CaptureService : Service() {
     }
 
     private fun beginCapture(point: IntArray?, tiles: List<android.graphics.Rect> = emptyList(), focus: PointFocus? = null) {
-        if (capturing) return
+        if (capturing) {
+            pendingNotice = null
+            return
+        }
         val dir = File(cacheDir, "capture/${System.currentTimeMillis()}").apply { mkdirs() }
         sessionDir = dir
         frameFiles.clear()
@@ -488,7 +514,11 @@ class CaptureService : Service() {
             )
         }
         runCatching { lock?.hide() }
-        lock = CaptureLockOverlay(this, screenZone, captureDurationMs, screenTiles, screenFocus).also { it.show() }
+        lock = CaptureLockOverlay(this, screenZone, captureDurationMs, screenTiles, screenFocus).also {
+            it.setNotice(pendingNotice)
+            pendingNotice = null
+            it.show()
+        }
         status.value = getString(R.string.capture_status_recording)
         // breve attesa perché mirino e bolla spariscano dallo schermo prima del primo fotogramma
         handler.postDelayed({
@@ -617,11 +647,12 @@ class CaptureService : Service() {
             var preview: Bitmap? = null
             var found = 0
             var animated = false
+            var duplicates = 0
 
             suspend fun store(bytes: ByteArray, name: String): StickerItem? {
                 val item = when (val r = library.importBytes(bytes, name, "capture")) {
                     is StickerLibrary.ImportResult.Added -> r.item
-                    is StickerLibrary.ImportResult.Duplicate -> r.item
+                    is StickerLibrary.ImportResult.Duplicate -> { duplicates++; r.item }
                     is StickerLibrary.ImportResult.Failed -> null
                 }
                 if (item != null) {
@@ -697,25 +728,26 @@ class CaptureService : Service() {
             }
             // fotogramma 0 e colore tenuti per i ritagli; se si esce prima con un errore li libera il GC
             captured.close()
-            CaptureOutcome(items, found, preview, animated)
+            CaptureOutcome(items, found, preview, animated, duplicates)
         }
         files.forEach { it.delete() }
         withContext(Dispatchers.Main) {
             result.onSuccess { outcome ->
-                val created = outcome.items.size
+                val duplicates = outcome.duplicates
+                val created = outcome.items.size - duplicates
                 sessionCount.value += created
                 createdIds.value = createdIds.value + outcome.items.map { it.id }
                 val total = sessionCount.value
                 val kind = getString(if (outcome.animated) R.string.capture_kind_animated else R.string.capture_kind_static)
-                val text = if (outcome.found > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created) + " ($kind)"
+                val text = if (outcome.found > 0) resultSummary(created, duplicates) + " ($kind)"
                 else getString(R.string.capture_status_none)
                 status.value = text
                 updateNotification(getString(R.string.capture_notification_progress, text, total))
                 if (outcome.found > 0) {
                     Toast.makeText(this@CaptureService, text, Toast.LENGTH_SHORT).show()
                     notifyResult(outcome)
-                    bubble?.setState(BubbleOverlay.State.RESULT, "+$created")
-                    mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.toString()) }, 2500)
+                    if (created > 0) bubble?.setState(BubbleOverlay.State.RESULT, "+$created")
+                    mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.takeIf { it > 0 }?.toString()) }, 2500)
                 } else {
                     bubble?.setState(BubbleOverlay.State.IDLE, if (total > 0) total.toString() else null)
                 }
@@ -736,6 +768,7 @@ class CaptureService : Service() {
         var preview: Bitmap? = null
         var anyAnimated = false
         val failures = ArrayList<String>()
+        var duplicates = 0
         val captured = runCatching { CapturedFrames(files, times) }.getOrNull()
         val proposals = if (captured != null && files.size >= MIN_FRAMES) runCatching {
             captured.detect(StickerDetector.Params())
@@ -763,13 +796,14 @@ class CaptureService : Service() {
                 val name = if (tiles.size > 1) "TikTok $stamp ${i + 1}" else "TikTok $stamp"
                 val item = when (val r = library.importBytes(converted.bytes, name, "capture")) {
                     is StickerLibrary.ImportResult.Added -> r.item
-                    is StickerLibrary.ImportResult.Duplicate -> r.item
+                    is StickerLibrary.ImportResult.Duplicate -> { duplicates++; r.item }
                     is StickerLibrary.ImportResult.Failed -> null
                 }
                 if (item != null) {
                     items.add(item)
                     if (preview == null) preview = firstFrame(converted.bytes)
-                    withContext(Dispatchers.Main) { bubble?.setState(BubbleOverlay.State.RESULT, "+${items.size}") }
+                    val addedSoFar = items.size - duplicates
+                    if (addedSoFar > 0) withContext(Dispatchers.Main) { bubble?.setState(BubbleOverlay.State.RESULT, "+$addedSoFar") }
                 }
             } catch (e: Exception) {
                 failures.add("${i + 1}: ${e.message ?: e.javaClass.simpleName}")
@@ -780,25 +814,33 @@ class CaptureService : Service() {
         withContext(Dispatchers.Main) {
             runCatching { lock?.hide() }
             lock = null
-            val created = items.size
+            val created = items.size - duplicates
             sessionCount.value += created
             createdIds.value = createdIds.value + items.map { it.id }
             val total = sessionCount.value
-            val text = if (created > 0) resources.getQuantityString(R.plurals.capture_status_created, created, created)
+            val text = if (items.isNotEmpty()) resultSummary(created, duplicates)
             else getString(R.string.capture_status_none)
             status.value = text
             updateNotification(getString(R.string.capture_notification_progress, text, total))
-            if (created > 0) {
+            if (items.isNotEmpty()) {
                 Toast.makeText(this@CaptureService, text, Toast.LENGTH_SHORT).show()
-                notifyResult(CaptureOutcome(items, tiles.size, preview, anyAnimated))
-                mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.toString()) }, 2500)
+                notifyResult(CaptureOutcome(items, tiles.size, preview, anyAnimated, duplicates))
+                mainHandler.postDelayed({ bubble?.setState(BubbleOverlay.State.IDLE, total.takeIf { it > 0 }?.toString()) }, 2500)
             } else {
                 bubble?.setState(BubbleOverlay.State.IDLE, if (total > 0) total.toString() else null)
             }
         }
     }
 
-    private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?, val animated: Boolean)
+    private class CaptureOutcome(val items: List<StickerItem>, val found: Int, val preview: Bitmap?, val animated: Boolean, val duplicates: Int = 0)
+
+    /** "2 aggiunti · 1 già in libreria"; solo doppioni: nessuno sticker nuovo. */
+    private fun resultSummary(added: Int, duplicates: Int): String {
+        val addedText = if (added > 0) resources.getQuantityString(R.plurals.capture_status_created, added, added)
+        else getString(R.string.capture_status_all_duplicates)
+        if (duplicates <= 0) return addedText
+        return addedText + " · " + resources.getQuantityString(R.plurals.capture_status_duplicates, duplicates, duplicates)
+    }
 
     /** Primo fotogramma dello sticker convertito, per l'anteprima nella notifica. */
     private fun firstFrame(webp: ByteArray): Bitmap? = runCatching {
@@ -828,7 +870,10 @@ class CaptureService : Service() {
         val names = outcome.items.joinToString(", ") { it.displayName }
         val builder = NotificationCompat.Builder(this, RESULT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_bubble)
-            .setContentTitle(resources.getQuantityString(R.plurals.capture_result_title, outcome.items.size, outcome.items.size))
+            .setContentTitle(
+                if (outcome.duplicates == 0) resources.getQuantityString(R.plurals.capture_result_title, outcome.items.size, outcome.items.size)
+                else resultSummary(outcome.items.size - outcome.duplicates, outcome.duplicates),
+            )
             .setContentText(names)
             .setSubText(resources.getQuantityString(R.plurals.capture_session_captured, sessionCount.value, sessionCount.value))
             .setContentIntent(open)
@@ -853,6 +898,7 @@ class CaptureService : Service() {
         bubble = null
         dismissAim()
         dismissRadial()
+        dismissEndConfirm()
         runCatching { lock?.hide() }
         lock = null
         // bitmap e buffer si liberano sul thread di cattura, che potrebbe ancora usarli
