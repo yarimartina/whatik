@@ -11,8 +11,8 @@ Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacc
 | Ottimizzazioni fase 1 + correzioni della cattura | `main` e `android/main` | Pubblicato; da provare sul telefono |
 | APK release (`whatik.apk`) e prova di avvio su emulatore | `main` e `android/main` | Pubblicato accanto a `whatik-debug.apk`; il link principale cambia solo dopo la prova sul telefono |
 | Fondamenta del design (P0), screenshot JVM, specifica | `android/feature/nuovo-design` | Fatto; contiene `main` (correzioni della cattura, APK release, prova di avvio) |
-| Schermata Libreria (P1) | `android/feature/nuovo-design` (`017b5a2`) | Fatta il 10 novembre |
-| Altre schermate, overlay e navigazione del nuovo design | — | Da fare: resto di A1 (Pack, Dettaglio pack), poi A2–E |
+| Libreria, Pack, Dettaglio pack e «Aggiungi al pack» (A1) | `android/feature/nuovo-design` (`d091af3`) | Fatte il 10 novembre |
+| Altre schermate, overlay e navigazione del nuovo design | — | Da fare: A2 (Cattura), A3 (navigazione), poi C, B, D, E |
 | iPhone | `ios/main` (`d4b873f`) | Fermo alla correzione dello sfondo |
 
 ## Cosa ha insegnato il lavoro fin qui
@@ -85,7 +85,7 @@ I pesi sono stime, ricavate dagli agenti già conclusi (P0: circa 390 mila token
 | # | Pacchetto | Branch | Peso stimato | Dopo |
 | --- | --- | --- | --- | --- |
 | 0 | Preparazione: `main` portato nel branch del design, APK release e prova di avvio in CI | `main`, poi design | **Fatto il 10 novembre** | APK release da provare sul telefono |
-| A1 | Libreria e Pack (P1, P3) | design | Libreria fatta (120 mila); Pack e Dettaglio pack ~200 mila | — |
+| A1 | Libreria e Pack (P1, P3) | design | **Fatto il 10 novembre** (285 mila token in due agenti) | — |
 | A2 | Schermata Cattura (P2) | design | ~150 mila | — |
 | A3 | Navigazione a tre schede (P9) | design | ~300 mila | Schermate «dopo», ok dell'autrice, unione in `android/main` |
 | C | Editor e «Crea pack» (P5, P6) | design | ~250 mila | Unione in `android/main` |
@@ -114,7 +114,10 @@ Il job `avvio` di `.github/workflows/android.yml` gira a ogni push su `main` e `
   - `LibraryScreen` ha il nuovo parametro `bottomBar` (A3 ci mette `WhatikNavigationBar`). `onImportVideo/Link/Gallery/Files/Folder`, `onScan` e `onOpenPacks` restano nella firma ma non sono più usati: si tolgono in P10.
   - Finché non c'è A3, su questo branch importazioni e Pack non si raggiungono dalla Libreria. È previsto: A1, A2 e A3 escono insieme.
   - Da guardare su un dispositivo: il menu ⋮ (negli screenshot JVM il riquadro esce stretto).
-- **Restano**: `ui/PacksScreen.kt` e `ui/PackDetailScreen.kt`, uno per volta.
+- **Pack, Dettaglio pack e «Aggiungi al pack»: fatti** (`a885e9b`, `d091af3`, 140 test, lint senza errori). Misura: 165 mila token e 12 minuti per le due schermate.
+  - `PacksScreen`: tolti `onBack` e `onDelete`; aggiunti `onGoToLibrary` e `bottomBar`. `AddToPackScreen`: `busy` è diventato `progress: Pair<Int, Int>?`. `PackDetailScreen` ha la firma di prima.
+  - `PacksScreen.kt` espone tre aiuti `internal` che il dettaglio riusa: `PackStatusChip`, `WhatsAppButton`, `packCountText`.
+  - «Elimina pack» ora sta nel menu ⋮ del dettaglio; «Unisci» è un pulsante dell'intestazione.
 - Il compito dato all'agente, da ripetere per le prossime schermate: un solo file da ridisegnare, le righe esatte della specifica da leggere, il punto di chiamata in `MainActivity.kt` da tenere compilabile senza interfacce provvisorie, gli scenari degli screenshot da aggiornare, un solo foglio di contatto da guardare, verifica finale unica, commit e push, rapporto in 15 righe.
 
 ### A2. Cattura
@@ -124,7 +127,9 @@ Il job `avvio` di `.github/workflows/android.yml` gira a ogni push su `main` e `
 ### A3. Navigazione
 - File: `ui/MainActivity.kt`, `ui/MainViewModel.kt`, più un test JVM della tabella del tasto Indietro.
 - Specifica: sezioni «Navigazione» e «Shell».
-- Collega i parametri nuovi che A1 e A2 hanno aggiunto alle schermate: a quel punto sono già nel branch.
+- Collega i parametri nuovi che A1 e A2 hanno aggiunto alle schermate: a quel punto sono già nel branch. Da A1: `bottomBar` per Libreria e Pack, `onGoToLibrary` per Pack.
+- `MergeState.deleteSources` deve partire da `false` in `MainViewModel`: è la scelta dell'autrice («Unisci pack» non elimina i pack di origine, salvo richiesta). Oggi parte da `true`.
+- Aggiungere a `ci/smoke.py` un tocco su «Altre azioni» con schermata: negli screenshot JVM i menu ⋮ escono stretti e fuori posto, va visto su un Android vero.
 - Alla fine: foglio di contatto «dopo» e link per l'autrice. Con il suo ok si unisce in `main` e `android/main`.
 
 ### C. Editor e «Crea pack»
@@ -144,6 +149,7 @@ Il job `avvio` di `.github/workflows/android.yml` gira a ogni push su `main` e `
 ### E. Pulizia e controllo finale
 - Specifica: sezione «P8 e P10».
 - Aggiornare `README.md`, `docs/STATO-PROGETTO.md` e questo file.
+- Ritocchi lasciati da A1: nel pack vuoto compaiono due pulsanti uguali («Aggiungi sticker» al centro e in basso), ne basta uno; sulla card di un pack TalkBack legge il nome due volte.
 
 ## Facoltativi, dopo
 
