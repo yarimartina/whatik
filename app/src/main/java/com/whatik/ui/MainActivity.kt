@@ -232,7 +232,7 @@ fun WhatikRoot(vm: MainViewModel) {
                     pack = pack,
                     items = items,
                     selected = detail.addSelection,
-                    busy = detail.progress != null,
+                    progress = detail.progress,
                     fileOf = { app.library.file(it) },
                     snackbarHost = snackbarHost,
                     onBack = { vm.back() },

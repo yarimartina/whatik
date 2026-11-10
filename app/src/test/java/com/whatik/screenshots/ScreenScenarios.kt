@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.whatik.R
 import com.whatik.data.PackPlanner
+import com.whatik.data.StickerPack
 import com.whatik.data.StickerExporter
 import com.whatik.image.CropSpec
 import com.whatik.image.StickerProposal
@@ -332,8 +333,7 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
     }
 
     @Composable
-    private fun PackDetail(detail: PackDetailState, packIndex: Int = 0) {
-        val pack = fake.packs[packIndex]
+    private fun PackDetail(detail: PackDetailState, packIndex: Int = 0, pack: StickerPack = fake.packs[packIndex]) {
         PackDetailScreen(
             pack = pack,
             detail = detail,
@@ -348,6 +348,8 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
         )
     }
 
+    private val packSelection = setOf("sticker_02.png", "sticker_03.png", "sticker_07.png")
+
     @Test
     fun packDetail() {
         show { PackDetail(PackDetailState(packId = fake.packs[0].identifier)) }
@@ -356,10 +358,7 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
 
     @Test
     fun packDetailSelection() {
-        val pack = fake.packs[0]
-        show {
-            PackDetail(PackDetailState(packId = pack.identifier, selected = setOf("sticker_02.png", "sticker_03.png", "sticker_07.png")))
-        }
+        show { PackDetail(PackDetailState(packId = fake.packs[0].identifier, selected = packSelection)) }
         snap("pack-detail-selection")
     }
 
@@ -370,11 +369,64 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
     }
 
     @Test
+    fun packDetailIncomplete() {
+        show { PackDetail(PackDetailState(packId = fake.packs[2].identifier), packIndex = 2) }
+        snap("pack-detail-incomplete")
+    }
+
+    @Test
+    fun packDetailBusy() {
+        show { PackDetail(PackDetailState(packId = fake.packs[0].identifier, progress = 3 to 8)) }
+        snap("pack-detail-busy")
+    }
+
+    @Test
+    fun packDetailEmpty() {
+        val empty = fake.packs[0].copy(stickers = emptyList())
+        show { PackDetail(PackDetailState(packId = empty.identifier), pack = empty) }
+        snap("pack-detail-empty")
+    }
+
+    @Test
+    fun packDetailMenu() {
+        show { PackDetail(PackDetailState(packId = fake.packs[0].identifier)) }
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_more)).performClick()
+        settle()
+        snapScreen("pack-detail-menu")
+    }
+
+    @Test
+    fun packDetailRemoveConfirm() {
+        show(dimmed = true) { PackDetail(PackDetailState(packId = fake.packs[0].identifier, selected = packSelection)) }
+        compose.onNodeWithText(compose.activity.getString(R.string.pack_action_remove)).performClick()
+        settle()
+        snapScreen("pack-detail-remove-confirm")
+    }
+
+    @Test
+    fun packDetailDeleteConfirm() {
+        show(dimmed = true) { PackDetail(PackDetailState(packId = fake.packs[0].identifier)) }
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.action_more)).performClick()
+        settle()
+        compose.onNodeWithText(compose.activity.getString(R.string.pack_action_delete)).performClick()
+        settle()
+        snapScreen("pack-detail-delete-confirm")
+    }
+
+    @Test
     fun packDetailMerge() {
         show(dimmed = true) {
-            PackDetail(PackDetailState(packId = fake.packs[0].identifier, merge = MergeState(sourceIds = setOf("pack_reazioni"))))
+            PackDetail(PackDetailState(packId = fake.packs[0].identifier, merge = MergeState(sourceIds = setOf("pack_reazioni"), deleteSources = false)))
         }
         snapScreen("pack-detail-merge")
+    }
+
+    @Test
+    fun packDetailMergeDelete() {
+        show(dimmed = true) {
+            PackDetail(PackDetailState(packId = fake.packs[0].identifier, merge = MergeState(sourceIds = setOf("pack_reazioni", "pack_prova"), deleteSources = true)))
+        }
+        snapScreen("pack-detail-merge-delete")
     }
 
     @Test
@@ -383,20 +435,52 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
         snapScreen("pack-detail-rename")
     }
 
+    @Composable
+    private fun AddToPack(
+        pack: StickerPack = fake.packs[1],
+        items: List<com.whatik.data.StickerItem> = fake.items,
+        selected: Set<String>,
+        progress: Pair<Int, Int>? = null,
+    ) {
+        AddToPackScreen(
+            pack = pack,
+            items = items,
+            selected = selected,
+            progress = progress,
+            fileOf = fake::file,
+            snackbarHost = noSnackbar,
+            onBack = none, onToggle = {}, onConfirm = none,
+        )
+    }
+
     @Test
     fun packAddStickers() {
-        show {
-            AddToPackScreen(
-                pack = fake.packs[1],
-                items = fake.items,
-                selected = setOf(fake.item(1).id, fake.item(5).id, fake.item(7).id),
-                busy = false,
-                fileOf = fake::file,
-                snackbarHost = noSnackbar,
-                onBack = none, onToggle = {}, onConfirm = none,
-            )
-        }
+        show { AddToPack(selected = setOf(fake.item(1).id, fake.item(5).id, fake.item(7).id)) }
         snap("pack-add-stickers")
+    }
+
+    @Test
+    fun packAddBusy() {
+        show { AddToPack(selected = setOf(fake.item(1).id), progress = 2 to 5) }
+        snap("pack-add-busy")
+    }
+
+    @Test
+    fun packAddFull() {
+        // pack con 27 sticker: 3 posti liberi, tutti scelti
+        val base = fake.packs[0]
+        val extra = (1..15).map { com.whatik.data.PackSticker(fileName = "extra_$it.png", emojis = listOf("\uD83D\uDE00")) }
+        val almostFull = base.copy(stickers = base.stickers + extra)
+        val inPack = almostFull.stickers.mapNotNull { it.sourceId }.toSet()
+        val chosen = fake.items.filter { it.id !in inPack }.take(3).map { it.id }.toSet()
+        show { AddToPack(pack = almostFull, selected = chosen) }
+        snap("pack-add-full")
+    }
+
+    @Test
+    fun packAddEmpty() {
+        show { AddToPack(items = emptyList(), selected = emptySet()) }
+        snap("pack-add-empty")
     }
 
     // ------------------------------------------------------------ editor

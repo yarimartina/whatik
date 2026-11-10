@@ -1,40 +1,36 @@
 package com.whatik.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.CallMerge
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,12 +38,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -59,22 +55,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.whatik.R
 import com.whatik.data.PackPlanner
 import com.whatik.data.StickerItem
 import com.whatik.data.StickerPack
+import com.whatik.ui.components.BarAction
+import com.whatik.ui.components.BusyBanner
+import com.whatik.ui.components.ConfirmDialog
+import com.whatik.ui.components.DialogContainerColor
+import com.whatik.ui.components.EmptyState
+import com.whatik.ui.components.SelectionBottomBar
+import com.whatik.ui.components.StickerGrid
+import com.whatik.ui.components.StickerImage
+import com.whatik.ui.components.StickerTile
+import com.whatik.ui.theme.Spacing
 import java.io.File
 
-/** Dettaglio di un pack: sticker contenuti, aggiunta, rimozione, rinomina, unione con altri pack. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+/**
+ * Dettaglio di un pack (P3): intestazione con stato e pulsanti, griglia degli sticker, selezione con
+ * [SelectionBottomBar] (Rimuovi), menu ⋮ con Rinomina ed Elimina; Unisci è un pulsante dell'intestazione.
+ * È una schermata di secondo livello: nessuna barra di navigazione.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PackDetailScreen(
     pack: StickerPack,
@@ -105,19 +113,22 @@ fun PackDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     val selectionMode = detail.selected.isNotEmpty()
     val busy = detail.progress != null
+    val total = pack.stickers.size
+
+    BackHandler(enabled = selectionMode) { onClearSelection() }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        if (selectionMode) stringResource(R.string.title_selected, detail.selected.size) else pack.name,
+                        if (selectionMode) pluralStringResource(R.plurals.title_selected_count, detail.selected.size, detail.selected.size) else pack.name,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (selectionMode) onClearSelection() else onBack() }) {
+                    IconButton(onClick = if (selectionMode) onClearSelection else onBack) {
                         Icon(
                             if (selectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(if (selectionMode) R.string.action_clear_selection else R.string.action_back),
@@ -125,27 +136,21 @@ fun PackDetailScreen(
                     }
                 },
                 actions = {
-                    if (selectionMode) {
-                        IconButton(onClick = { confirmRemove = true }, enabled = !busy) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.pack_action_remove))
-                        }
-                    } else {
+                    if (!selectionMode) {
                         Box {
-                            IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
+                            IconButton(onClick = { menu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more))
+                            }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.pack_action_rename)) },
                                     leadingIcon = { Icon(Icons.Default.Edit, null) },
                                     onClick = { menu = false; onOpenRename() },
                                 )
+                                val error = MaterialTheme.colorScheme.error
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.pack_action_merge)) },
-                                    leadingIcon = { Icon(Icons.Default.CallMerge, null) },
-                                    onClick = { menu = false; onOpenMerge() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_delete)) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                    text = { Text(stringResource(R.string.pack_action_delete), color = error) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = error) },
                                     onClick = { menu = false; confirmDelete = true },
                                 )
                             }
@@ -154,8 +159,20 @@ fun PackDetailScreen(
                 },
             )
         },
+        bottomBar = {
+            if (selectionMode) {
+                val removeLabel = stringResource(R.string.pack_action_remove)
+                SelectionBottomBar(
+                    remember(busy, removeLabel) {
+                        listOf(
+                            BarAction(Icons.Default.RemoveCircleOutline, removeLabel, enabled = !busy, destructive = true, onClick = { confirmRemove = true }),
+                        )
+                    },
+                )
+            }
+        },
         floatingActionButton = {
-            if (!selectionMode && !busy && pack.stickers.size < PackPlanner.MAX_STICKERS) {
+            if (!selectionMode && !busy && total < PackPlanner.MAX_STICKERS) {
                 ExtendedFloatingActionButton(
                     onClick = onAddStickers,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -166,61 +183,52 @@ fun PackDetailScreen(
         snackbarHost = snackbarHost,
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(
-                    stringResource(
-                        if (pack.animated) R.string.pack_count_animated else R.string.pack_count_static,
-                        pack.stickers.size,
-                    ) + " · " + stringResource(R.string.pack_free_slots, pack.stickers.size, PackPlanner.MAX_STICKERS),
-                    style = MaterialTheme.typography.bodySmall,
+            detail.progress?.let { (done, all) ->
+                BusyBanner(stringResource(R.string.pack_progress, done, all), progress = if (all > 0) done.toFloat() / all else 0f)
+            }
+            val header: @Composable () -> Unit = {
+                PackHeader(
+                    pack = pack,
+                    added = added,
+                    tray = remember(pack.identifier, pack.trayFile, pack.imageDataVersion) { stickerFileOf(pack, pack.trayFile) },
+                    busy = busy,
+                    canMerge = allPacks.size > 1,
+                    onAddToWhatsApp = onAddToWhatsApp,
+                    onOpenMerge = onOpenMerge,
                 )
-                val status = when {
-                    !pack.isAddable -> stringResource(R.string.pack_status_too_small, pack.stickers.size, PackPlanner.MIN_STICKERS)
-                    added -> stringResource(R.string.pack_status_added)
-                    else -> stringResource(R.string.pack_status_not_added)
-                }
-                Text(status, style = MaterialTheme.typography.labelMedium, color = if (added && pack.isAddable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (pack.isAddable) {
-                        if (added) {
-                            OutlinedButton(onClick = onAddToWhatsApp, enabled = !busy) { Text(stringResource(R.string.action_reopen_whatsapp)) }
-                        } else {
-                            Button(onClick = onAddToWhatsApp, enabled = !busy) { Text(stringResource(R.string.action_add_to_whatsapp)) }
-                        }
-                    }
-                    OutlinedButton(onClick = onOpenMerge, enabled = !busy && allPacks.size > 1) {
-                        Icon(Icons.Default.CallMerge, null)
-                        Spacer(Modifier.size(6.dp))
-                        Text(stringResource(R.string.pack_action_merge_short))
-                    }
-                }
-                detail.progress?.let { (done, total) ->
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(progress = { if (total > 0) done.toFloat() / total else 0f }, modifier = Modifier.fillMaxWidth())
-                    Text(stringResource(R.string.pack_progress, done, total), style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.pack_detail_hint), style = MaterialTheme.typography.bodySmall)
             }
             if (pack.stickers.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.pack_empty), textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
+                Column(Modifier.fillMaxWidth().weight(1f)) {
+                    Box(Modifier.padding(horizontal = Spacing.l)) { header() }
+                    EmptyState(
+                        icon = Icons.Default.AddPhotoAlternate,
+                        title = stringResource(R.string.pack_empty),
+                        body = null,
+                        modifier = Modifier.weight(1f),
+                        actionLabel = stringResource(R.string.pack_action_add),
+                        onAction = onAddStickers,
+                    )
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 96.dp),
-                    contentPadding = PaddingValues(start = 8.dp, top = 4.dp, end = 8.dp, bottom = 96.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(pack.stickers, key = { it.fileName }) { sticker ->
-                        val selected = sticker.fileName in detail.selected
-                        SelectableTile(
-                            model = stickerFileOf(pack, sticker.fileName),
-                            selected = selected,
-                            badge = null,
+                StickerGrid(Modifier.fillMaxWidth().weight(1f)) {
+                    item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                        Column(Modifier.padding(horizontal = Spacing.xs)) {
+                            header()
+                            Text(
+                                stringResource(R.string.pack_detail_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = Spacing.s),
+                            )
+                        }
+                    }
+                    itemsIndexed(pack.stickers, key = { _, s -> s.fileName }) { index, sticker ->
+                        val file = remember(sticker.fileName) { stickerFileOf(pack, sticker.fileName) }
+                        val description = stringResource(R.string.a11y_pack_sticker, index + 1, total)
+                        StickerTile(
+                            model = file,
+                            contentDescription = description,
+                            selected = sticker.fileName in detail.selected,
                             onClick = { onToggleSticker(sticker.fileName) },
                         )
                     }
@@ -230,21 +238,23 @@ fun PackDetailScreen(
     }
 
     if (confirmRemove) {
-        AlertDialog(
-            onDismissRequest = { confirmRemove = false },
-            title = { Text(pluralStringResource(R.plurals.pack_remove_confirm, detail.selected.size, detail.selected.size)) },
-            text = { Text(stringResource(R.string.pack_remove_body)) },
-            confirmButton = { TextButton(onClick = { confirmRemove = false; onRemoveSelected() }) { Text(stringResource(R.string.pack_action_remove)) } },
-            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.action_cancel)) } },
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.pack_remove_confirm, detail.selected.size, detail.selected.size),
+            body = stringResource(R.string.pack_remove_body),
+            confirmLabel = stringResource(R.string.pack_action_remove),
+            onConfirm = { confirmRemove = false; onRemoveSelected() },
+            onDismiss = { confirmRemove = false },
+            destructive = true,
         )
     }
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.action_delete)) },
-            text = { Text(stringResource(R.string.pack_delete_confirm, pack.name)) },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text(stringResource(R.string.action_delete)) } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) } },
+        ConfirmDialog(
+            title = stringResource(R.string.pack_delete_title),
+            body = stringResource(R.string.pack_delete_confirm, pack.name),
+            confirmLabel = stringResource(R.string.action_delete),
+            onConfirm = { confirmDelete = false; onDelete() },
+            onDismiss = { confirmDelete = false },
+            destructive = true,
         )
     }
     detail.merge?.let { merge ->
@@ -264,23 +274,73 @@ fun PackDetailScreen(
     }
 }
 
-/** Griglia della libreria per scegliere gli sticker da aggiungere al pack. */
+/** Icona 64 dp, «n/30 sticker · tipo», stato e pulsanti WhatsApp e Unisci. */
+@Composable
+private fun PackHeader(
+    pack: StickerPack,
+    added: Boolean,
+    tray: File,
+    busy: Boolean,
+    canMerge: Boolean,
+    onAddToWhatsApp: () -> Unit,
+    onOpenMerge: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = Spacing.s), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+            StickerImage(
+                model = tray,
+                contentDescription = null,
+                animate = false,
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                val kind = stringResource(if (pack.animated) R.string.kind_animated_pl else R.string.kind_still_pl)
+                Text(
+                    stringResource(R.string.pack_meta, pack.stickers.size, PackPlanner.MAX_STICKERS, kind),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                PackStatusChip(pack, added)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+            if (pack.isAddable) WhatsAppButton(added = added, onClick = onAddToWhatsApp, enabled = !busy)
+            OutlinedButton(onClick = onOpenMerge, enabled = !busy && canMerge) {
+                Icon(Icons.Default.CallMerge, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(Spacing.s))
+                Text(stringResource(R.string.pack_action_merge_short))
+            }
+        }
+    }
+}
+
+/**
+ * Griglia della libreria per scegliere gli sticker da aggiungere al pack. Quando la scelta riempie i posti
+ * liberi le tessere non selezionate si disattivano (e TalkBack le annuncia come tali).
+ * [progress] = (fatti, totale) della conversione in corso, null altrimenti.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddToPackScreen(
     pack: StickerPack,
     items: List<StickerItem>,
     selected: Set<String>,
-    busy: Boolean,
+    progress: Pair<Int, Int>?,
     fileOf: (StickerItem) -> File,
     snackbarHost: @Composable () -> Unit,
     onBack: () -> Unit,
     onToggle: (String) -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val busy = progress != null
     val free = PackPlanner.MAX_STICKERS - pack.stickers.size
-    val alreadyIn = pack.stickers.mapNotNull { it.sourceId }.toSet()
-    val candidates = items.filter { it.id !in alreadyIn }
+    val candidates = remember(pack.stickers, items) {
+        val alreadyIn = pack.stickers.mapNotNull { it.sourceId }.toSet()
+        items.filter { it.id !in alreadyIn }
+    }
+    val full = selected.size >= free
     Scaffold(
         topBar = {
             TopAppBar(
@@ -304,70 +364,47 @@ fun AddToPackScreen(
         snackbarHost = snackbarHost,
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Text(
-                stringResource(R.string.pack_add_hint, free, if (pack.animated) stringResource(R.string.capture_kind_animated) else stringResource(R.string.capture_kind_static)),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            progress?.let { (done, all) ->
+                BusyBanner(stringResource(R.string.pack_progress, done, all), progress = if (all > 0) done.toFloat() / all else 0f)
+            }
             if (candidates.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.pack_add_empty), textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
-                }
+                EmptyState(
+                    icon = Icons.Default.AddPhotoAlternate,
+                    title = stringResource(R.string.pack_add_empty),
+                    body = null,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                )
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 96.dp),
-                    contentPadding = PaddingValues(start = 8.dp, top = 4.dp, end = 8.dp, bottom = 96.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
+                val kind = stringResource(if (pack.animated) R.string.capture_kind_animated else R.string.capture_kind_static)
+                Text(
+                    stringResource(R.string.pack_add_hint, free, kind),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s),
+                )
+                if (full) {
+                    Text(
+                        stringResource(R.string.pack_add_full),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l).padding(bottom = Spacing.s),
+                    )
+                }
+                StickerGrid(Modifier.fillMaxWidth().weight(1f)) {
                     items(candidates, key = { it.id }) { item ->
-                        SelectableTile(
-                            model = fileOf(item),
-                            selected = item.id in selected,
-                            badge = if (item.animated) stringResource(R.string.badge_animated) else null,
+                        val file = remember(item.fileName) { fileOf(item) }
+                        val isSelected = item.id in selected
+                        StickerTile(
+                            model = file,
+                            contentDescription = item.displayName,
+                            selected = isSelected,
+                            animated = item.animated,
+                            enabled = isSelected || !full,
                             onClick = { onToggle(item.id) },
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SelectableTile(model: Any, selected: Boolean, badge: String?, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
-    val borderModifier = if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape) else Modifier
-    Box(
-        Modifier
-            .aspectRatio(1f)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .then(borderModifier)
-            .clickable(onClick = onClick),
-    ) {
-        AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(6.dp))
-        if (badge != null) {
-            Text(
-                badge,
-                style = MaterialTheme.typography.labelSmall,
-                color = androidx.compose.ui.graphics.Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp)
-                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        if (selected) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).background(MaterialTheme.colorScheme.surface, CircleShape).size(24.dp),
-            )
         }
     }
 }
@@ -391,48 +428,64 @@ private fun MergeDialog(
     val overflowPacks = if (overflow == 0) 0 else (overflow + PackPlanner.MAX_STICKERS - 1) / PackPlanner.MAX_STICKERS
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DialogContainerColor,
         title = { Text(stringResource(R.string.merge_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.merge_hint, target.name), style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.merge_hint, target.name), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(Spacing.s))
                 if (others.isEmpty()) {
-                    Text(stringResource(R.string.merge_none), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.merge_none), style = MaterialTheme.typography.bodyMedium)
                 }
                 others.forEach { other ->
+                    val checked = other.identifier in state.sourceIds
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { onToggleSource(other.identifier) },
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggleSource(other.identifier) }),
                     ) {
-                        Checkbox(checked = other.identifier in state.sourceIds, onCheckedChange = { onToggleSource(other.identifier) })
-                        Column {
-                            Text(other.name, style = MaterialTheme.typography.bodyMedium)
+                        Checkbox(checked = checked, onCheckedChange = null)
+                        Column(Modifier.weight(1f)) {
+                            Text(other.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(
-                                stringResource(if (other.animated) R.string.pack_count_animated else R.string.pack_count_static, other.stickers.size),
-                                style = MaterialTheme.typography.bodySmall,
+                                packCountText(other),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
                 if (mixed) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.s))
                     Text(stringResource(R.string.merge_result_type), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onResultAnimated(true) }) {
-                        RadioButton(selected = state.resultAnimated, onClick = { onResultAnimated(true) })
-                        Text(stringResource(R.string.merge_result_animated), style = MaterialTheme.typography.bodySmall)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onResultAnimated(false) }) {
-                        RadioButton(selected = !state.resultAnimated, onClick = { onResultAnimated(false) })
-                        Text(stringResource(R.string.merge_result_static), style = MaterialTheme.typography.bodySmall)
-                    }
+                    MergeTypeRow(stringResource(R.string.merge_result_animated), state.resultAnimated) { onResultAnimated(true) }
+                    MergeTypeRow(stringResource(R.string.merge_result_static), !state.resultAnimated) { onResultAnimated(false) }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onDeleteSources(!state.deleteSources) }) {
-                    Checkbox(checked = state.deleteSources, onCheckedChange = onDeleteSources)
-                    Text(stringResource(R.string.merge_delete_sources), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(Spacing.s))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .toggleable(value = state.deleteSources, role = Role.Switch, onValueChange = onDeleteSources),
+                ) {
+                    Text(stringResource(R.string.merge_delete_sources), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Switch(checked = state.deleteSources, onCheckedChange = null)
+                }
+                if (state.deleteSources) {
+                    Text(
+                        stringResource(R.string.merge_delete_sources_help),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
                 if (chosen.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.merge_summary, total, inTarget, overflow, overflowPacks), style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(Spacing.m))
+                    Text(stringResource(R.string.merge_summary, total, inTarget, overflow, overflowPacks), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
@@ -444,16 +497,32 @@ private fun MergeDialog(
 }
 
 @Composable
+private fun MergeTypeRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
 private fun RenameDialog(pack: StickerPack, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
     var name by remember(pack.identifier) { mutableStateOf(pack.name) }
     var publisher by remember(pack.identifier) { mutableStateOf(pack.publisher) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DialogContainerColor,
         title = { Text(stringResource(R.string.rename_title)) },
         text = {
             Column {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(128) }, label = { Text(stringResource(R.string.export_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Spacing.s))
                 OutlinedTextField(value = publisher, onValueChange = { publisher = it.take(128) }, label = { Text(stringResource(R.string.export_publisher)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
         },
