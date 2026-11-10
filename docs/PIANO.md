@@ -25,7 +25,9 @@ Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacc
 
 ## Ambiente
 
-L'SDK Android non è nell'immagine della macchina. Questi comandi lo reinstallano (verificati il 9 novembre: 11 secondi, 462 MB):
+L'SDK Android non è nell'immagine della macchina. Dal 10 novembre l'ambiente cloud «Predefinito» ha uno script di avvio che, quando c'è il repository `whatik`, installa l'SDK in `/opt/android-sdk`, scrive `whatik/local.properties` (così Gradle lo trova anche senza `ANDROID_HOME`) e crea il mirror di Maven Central. Lo script è stato provato a mano, ma va confermato alla prima macchina nuova. Nei worktree `local.properties` non c'è: lì serve `export ANDROID_HOME=/opt/android-sdk`.
+
+Se `/opt/android-sdk` manca, questi comandi lo reinstallano (11 secondi, 462 MB):
 
 ```bash
 export ANDROID_HOME=/opt/android-sdk
