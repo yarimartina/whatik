@@ -10,10 +10,12 @@ on:
   push:
     branches: ["main", "android/**"]
     tags: ["android-v*"]
-    # le modifiche solo all'app iPhone non ricompilano Android
+    # le modifiche solo all'app iPhone o solo ai documenti non ricompilano Android
     paths-ignore:
       - "ios/**"
       - ".github/workflows/ios.yml"
+      - "docs/**"
+      - "README.md"
   workflow_dispatch:
 
 permissions:

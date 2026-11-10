@@ -1,6 +1,6 @@
 # Piano di lavoro: come finire Whatik senza sprechi
 
-Aggiornato il 9 novembre 2026. È il punto di ripartenza: una sessione nuova, o un agente, legge questo file e `docs/DESIGN.md` e sa cosa fare. Va aggiornato alla fine di ogni pacchetto.
+Aggiornato il 10 novembre 2026. È il punto di ripartenza: una sessione nuova, o un agente, legge questo file e `docs/DESIGN.md` e sa cosa fare. Va aggiornato alla fine di ogni pacchetto.
 
 Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacchetto non fatto. Fermati alla fine del pacchetto.»
 
@@ -8,8 +8,9 @@ Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacc
 
 | Cosa | Dove | Stato |
 | --- | --- | --- |
-| Ottimizzazioni fase 1 + correzioni della cattura | `main` e `android/main` (`c0ae3d0`), APK build #31 | Pubblicato; da provare sul telefono |
-| Fondamenta del design (P0), screenshot JVM, specifica | `android/feature/nuovo-design` (`03db52c`) | Fatto; non contiene ancora le correzioni della cattura |
+| Ottimizzazioni fase 1 + correzioni della cattura | `main` e `android/main` | Pubblicato; da provare sul telefono |
+| APK release (`whatik.apk`) e prova di avvio su emulatore | `main` e `android/main` | Pubblicato accanto a `whatik-debug.apk`; il link principale cambia solo dopo la prova sul telefono |
+| Fondamenta del design (P0), screenshot JVM, specifica | `android/feature/nuovo-design` | Fatto; contiene `main` (correzioni della cattura, APK release, prova di avvio) |
 | Schermate, overlay e navigazione del nuovo design | — | Da fare: pacchetti A1–E |
 | iPhone | `ios/main` (`d4b873f`) | Fermo alla correzione dello sfondo |
 
@@ -19,7 +20,8 @@ Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacc
 2. **La macchina di lavoro viene ricreata.** L'SDK Android e la cartella temporanea spariscono: così si sono persi i due report di analisi. Da ora: tutto ciò che serve sta nel repository, e l'SDK si reinstalla con i comandi qui sotto.
 3. **Una conversazione lunga costa a ogni passaggio**, perché viene riletta ogni volta. Da ora: si riparte con un contesto corto (`/compact` o una sessione nuova) e si legge questo file.
 4. **Le verifiche su GitHub non costano token.** Test, build, prova di avvio su emulatore e schermate vere li può fare la CI.
-5. **L'APK pubblicato è la build di debug**: 17,7 MB e non ottimizzata. La build release pesa 1,6 MB ed è minificata. Pubblicarla è il miglioramento più economico che resta.
+5. **L'APK scaricato finora è la build di debug**: 17,7 MB e non ottimizzata. La build release pesa 1,7 MB e sull'emulatore della CI parte in 1,07 s contro 2,0 s (mediana di 5 avvii a freddo). Dal 10 novembre è pubblicata come `whatik.apk`.
+6. **Maven Central risponde spesso 429 da questa macchina** («Too Many Requests») e la build si ferma. Si passa dal mirror di Google con lo script Gradle della sezione «Ambiente»: sta fuori dal repository, quindi la CI non cambia.
 
 ## Ambiente
 
@@ -34,7 +36,28 @@ unzip -q -o cmdtools.zip && rm -rf $ANDROID_HOME/cmdline-tools/latest && mv cmdl
 $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-35" "build-tools;34.0.0" >/dev/null
 ```
 
-La build completa con questo SDK va confermata al primo uso: le licenze sono accettate, quindi Gradle scarica da solo ciò che manca.
+Poi il mirror di Maven Central, sempre fuori dal repository:
+
+```bash
+mkdir -p ~/.gradle/init.d && cat > ~/.gradle/init.d/central-mirror.gradle <<'GRADLE'
+def centralMirror = "https://maven-central.storage-download.googleapis.com/maven2/"
+def putFirst = { repos ->
+    def m = repos.maven {
+        name = "centralMirror"
+        url = centralMirror
+        content { excludeGroupByRegex("androidx\\..*"); excludeGroupByRegex("com\\.android.*") }
+    }
+    repos.remove(m)
+    repos.addFirst(m)
+}
+settingsEvaluated { settings ->
+    putFirst(settings.pluginManagement.repositories)
+    putFirst(settings.dependencyResolutionManagement.repositories)
+}
+GRADLE
+```
+
+Con questo SDK e il mirror la build completa è confermata (10 novembre): `assembleDebug assembleRelease` in 3 minuti e mezzo a cache vuota.
 
 - Verifica completa: `export ANDROID_HOME=/opt/android-sdk && ./gradlew --no-daemon -q testDebugUnitTest assembleDebug lintDebug`
 - Durante il lavoro basta `./gradlew --no-daemon -q compileDebugKotlin`.
@@ -58,7 +81,7 @@ I pesi sono stime, ricavate dagli agenti già conclusi (P0: circa 390 mila token
 
 | # | Pacchetto | Branch | Peso stimato | Dopo |
 | --- | --- | --- | --- | --- |
-| 0 | Preparazione: SDK salvato nell'ambiente, `main` portato nel branch del design, APK release e prova di avvio in CI | `main`, poi design | 50–80 mila | APK release da provare |
+| 0 | Preparazione: `main` portato nel branch del design, APK release e prova di avvio in CI | `main`, poi design | **Fatto il 10 novembre** | APK release da provare sul telefono |
 | A1 | Libreria e Pack (P1, P3) | design | ~300 mila | — |
 | A2 | Schermata Cattura (P2) | design | ~150 mila | — |
 | A3 | Navigazione a tre schede (P9) | design | ~300 mila | Schermate «dopo», ok dell'autrice, unione in `android/main` |
@@ -69,13 +92,17 @@ I pesi sono stime, ricavate dagli agenti già conclusi (P0: circa 390 mila token
 
 A1, A2 e A3 arrivano all'APK insieme: la Libreria nuova non ha più il menu «+» e l'icona dei Pack, che passano alla scheda Cattura e alla barra in basso. Dopo A3 ogni pacchetto si può pubblicare da solo.
 
-### 0. Preparazione
-1. **SDK nell'ambiente.** Salvare i comandi della sezione «Ambiente» come script di avvio dell'ambiente cloud «Predefinito» (personale, senza script, rete libera). Vanno protetti da `if [ -d whatik ]` e non devono mai far fallire l'avvio.
-2. **`main` nel branch del design**: `git merge origin/main` in `android/feature/nuovo-design`. Attenzione alle stringhe doppie: `bubble_end_confirm` e `capture_status_duplicates` esistono sia fra quelle di P0 sia nel blocco «Correzioni cattura» in fondo ai due `strings.xml`. Va tenuta una sola definizione; `capture_status_all_duplicates` resta.
-3. **APK release.** In `.github/workflows/android.yml` aggiungere `assembleRelease` e pubblicare `whatik.apk` accanto a `whatik-debug.apk`. La firma è la stessa (`sideload`), quindi si installa sopra l'app esistente. In `app/proguard-rules.pro` aggiungere per sicurezza le regole standard di kotlinx.serialization.
-4. **Prova di avvio in CI.** Un job con emulatore (`reactivecircus/android-emulator-runner`, API 34, `ubuntu-latest` con KVM): installa `whatik.apk`, avvia `com.whatik/.ui.MainActivity`, controlla che il processo sia vivo e che in logcat non ci sia `FATAL EXCEPTION`, salva schermate vere con `adb exec-out screencap` e le allega alla release.
-- Fatto quando: la release `latest` contiene `whatik.apk`, `whatik-debug.apk` e le schermate, e il link vecchio continua a funzionare.
-- Il link principale passa a `whatik.apk` solo dopo che l'autrice l'ha provato sul telefono.
+### 0. Preparazione (fatto)
+- `main` è nel branch del design: le stringhe doppie sono risolte, 140 test passano, lint senza errori.
+- La CI compila i due APK insieme (stesso `versionCode`, stessa firma `sideload`) e pubblica `whatik.apk` nella release `latest` solo dopo la prova di avvio. R8 toglie il codice non usato ma non rinomina le classi (`-dontobfuscate`): errori e tracce dei crash restano leggibili.
+- Resta da fare: quando l'autrice ha provato `whatik.apk` sul telefono, il link principale (README e note della release) passa a `whatik.apk`.
+
+### Prova di avvio in CI
+Il job `avvio` di `.github/workflows/android.yml` gira a ogni push su `main` e `android/**` e usa `ci/smoke.py` su un emulatore (API 34). Ripete il percorso di chi ha già l'app: installa la build di debug, importa uno sticker con «Condividi», installa sopra la build release, controlla che parta, non vada in crash e ritrovi la libreria, tocca le schede (`TABS` nello script), importa un secondo sticker e misura gli avvii a freddo.
+
+- Risultati: artefatto `schermate` della run (PNG, foglio unico `schermate.png`, `riepilogo.md` con i testi letti sullo schermo, `logcat.txt`). Su `android/main` il foglio e il riepilogo finiscono anche nella release `latest`.
+- Da una sessione: elencare gli artefatti della run, chiedere il link di download di `schermate`, scaricarlo con `curl` e leggere prima `riepilogo.md`; il foglio si guarda solo quando serve.
+- Sono le schermate vere del nuovo design a costo zero: per A1–A3 basta fare push sul branch del design.
 
 ### A1. Libreria e Pack
 - File: `ui/LibraryScreen.kt`, `ui/PacksScreen.kt`, `ui/PackDetailScreen.kt` e i loro scenari in `app/src/test/java/com/whatik/screenshots/ScreenScenarios.kt`.
