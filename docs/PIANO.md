@@ -11,7 +11,8 @@ Per ripartire basta scrivere: «Leggi `docs/PIANO.md` ed esegui il prossimo pacc
 | Ottimizzazioni fase 1 + correzioni della cattura | `main` e `android/main` | Pubblicato; da provare sul telefono |
 | APK release (`whatik.apk`) e prova di avvio su emulatore | `main` e `android/main` | Pubblicato accanto a `whatik-debug.apk`; il link principale cambia solo dopo la prova sul telefono |
 | Fondamenta del design (P0), screenshot JVM, specifica | `android/feature/nuovo-design` | Fatto; contiene `main` (correzioni della cattura, APK release, prova di avvio) |
-| Schermate, overlay e navigazione del nuovo design | — | Da fare: pacchetti A1–E |
+| Schermata Libreria (P1) | `android/feature/nuovo-design` (`017b5a2`) | Fatta il 10 novembre |
+| Altre schermate, overlay e navigazione del nuovo design | — | Da fare: resto di A1 (Pack, Dettaglio pack), poi A2–E |
 | iPhone | `ios/main` (`d4b873f`) | Fermo alla correzione dello sfondo |
 
 ## Cosa ha insegnato il lavoro fin qui
@@ -72,7 +73,7 @@ Con questo SDK e il mirror la build completa è confermata (10 novembre): `assem
 - **Mai lavoro non salvato**: commit e push dopo ogni schermata che compila, anche se il pacchetto non è finito.
 - **Leggere poco**: questo file, le sezioni di `docs/DESIGN.md` indicate e i file del pacchetto. Niente esplorazioni larghe.
 - **Verificare una volta sola**: compilazione durante il lavoro, verifica completa alla fine. Gli screenshot si guardano su un foglio di contatto, non uno per uno.
-- **Modello**: quello più economico per i pacchetti meccanici (A2, C, D, E), quello più capace per A1, A3 e B.
+- **Modello**: un agente con il modello leggero (`sonnet`, impegno alto) ha fatto bene la Libreria: si usa quello per le schermate, e il più capace solo se il risultato non convince. Una schermata alla volta, poi ci si ferma: l'autrice guarda la percentuale del limite e decide.
 - **Rapporto finale** in 15 righe al massimo. Poi si aggiorna la tabella «Stato» di questo file.
 - Messaggi di commit in italiano, con le righe di attribuzione indicate dalla sessione. Niente pull request, a meno che l'autrice del progetto le chieda.
 - Con lei si parla in italiano semplice e con messaggi brevi: legge dal telefono e decide a ogni tappa se continuare.
@@ -84,7 +85,7 @@ I pesi sono stime, ricavate dagli agenti già conclusi (P0: circa 390 mila token
 | # | Pacchetto | Branch | Peso stimato | Dopo |
 | --- | --- | --- | --- | --- |
 | 0 | Preparazione: `main` portato nel branch del design, APK release e prova di avvio in CI | `main`, poi design | **Fatto il 10 novembre** | APK release da provare sul telefono |
-| A1 | Libreria e Pack (P1, P3) | design | ~300 mila | — |
+| A1 | Libreria e Pack (P1, P3) | design | Libreria fatta (120 mila); Pack e Dettaglio pack ~200 mila | — |
 | A2 | Schermata Cattura (P2) | design | ~150 mila | — |
 | A3 | Navigazione a tre schede (P9) | design | ~300 mila | Schermate «dopo», ok dell'autrice, unione in `android/main` |
 | C | Editor e «Crea pack» (P5, P6) | design | ~250 mila | Unione in `android/main` |
@@ -109,6 +110,12 @@ Il job `avvio` di `.github/workflows/android.yml` gira a ogni push su `main` e `
 ### A1. Libreria e Pack
 - File: `ui/LibraryScreen.kt`, `ui/PacksScreen.kt`, `ui/PackDetailScreen.kt` e i loro scenari in `app/src/test/java/com/whatik/screenshots/ScreenScenarios.kt`.
 - Specifica: `docs/DESIGN.md`, sezioni «Componenti di P0», «Libreria», «Pack», «Dettaglio pack e Aggiungi al pack».
+- **Libreria: fatta** (`017b5a2`, 140 test, lint senza errori). Misura: 120 mila token e 6 minuti con il modello leggero.
+  - `LibraryScreen` ha il nuovo parametro `bottomBar` (A3 ci mette `WhatikNavigationBar`). `onImportVideo/Link/Gallery/Files/Folder`, `onScan` e `onOpenPacks` restano nella firma ma non sono più usati: si tolgono in P10.
+  - Finché non c'è A3, su questo branch importazioni e Pack non si raggiungono dalla Libreria. È previsto: A1, A2 e A3 escono insieme.
+  - Da guardare su un dispositivo: il menu ⋮ (negli screenshot JVM il riquadro esce stretto).
+- **Restano**: `ui/PacksScreen.kt` e `ui/PackDetailScreen.kt`, uno per volta.
+- Il compito dato all'agente, da ripetere per le prossime schermate: un solo file da ridisegnare, le righe esatte della specifica da leggere, il punto di chiamata in `MainActivity.kt` da tenere compilabile senza interfacce provvisorie, gli scenari degli screenshot da aggiornare, un solo foglio di contatto da guardare, verifica finale unica, commit e push, rapporto in 15 righe.
 
 ### A2. Cattura
 - File: `ui/CaptureScreen.kt` e il suo scenario.
