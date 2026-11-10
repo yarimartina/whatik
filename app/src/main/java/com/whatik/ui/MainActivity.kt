@@ -188,10 +188,9 @@ fun WhatikRoot(vm: MainViewModel) {
             trayOf = { app.packStore.trayFile(it) },
             stickerFilesOf = { pack -> pack.stickers.map { app.packStore.stickerFile(pack, it) } },
             snackbarHost = snackbarHost,
-            onBack = { vm.back() },
             onAddToWhatsApp = addToWhatsApp,
-            onDelete = vm::deletePack,
             onOpen = vm::openPack,
+            onGoToLibrary = { vm.navigate(Screen.LIBRARY) },
         )
         Screen.PACK_DETAIL -> {
             val detail = packDetail

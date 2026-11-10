@@ -311,7 +311,8 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
                 packs = fake.packs, addedToWhatsApp = fake.addedToWhatsApp,
                 trayOf = fake::trayOf,
                 stickerFilesOf = { pack -> pack.stickers.map { fake.stickerFile(pack, it.fileName) } },
-                snackbarHost = noSnackbar, onBack = none, onAddToWhatsApp = {}, onDelete = {}, onOpen = {},
+                snackbarHost = noSnackbar, onAddToWhatsApp = {}, onOpen = {}, onGoToLibrary = none,
+                bottomBar = { WhatikNavigationBar(TopLevelDestination.PACKS, onSelect = {}, captureActive = false) },
             )
         }
         snap("packs-list")
@@ -323,7 +324,8 @@ abstract class ScreenScenarios(suffix: String) : ScreenshotTestBase(suffix) {
             PacksScreen(
                 packs = emptyList(), addedToWhatsApp = emptyMap(),
                 trayOf = fake::trayOf, stickerFilesOf = { emptyList() },
-                snackbarHost = noSnackbar, onBack = none, onAddToWhatsApp = {}, onDelete = {}, onOpen = {},
+                snackbarHost = noSnackbar, onAddToWhatsApp = {}, onOpen = {}, onGoToLibrary = none,
+                bottomBar = { WhatikNavigationBar(TopLevelDestination.PACKS, onSelect = {}, captureActive = false) },
             )
         }
         snap("packs-empty")
